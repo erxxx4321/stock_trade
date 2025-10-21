@@ -9,7 +9,6 @@ from enum import Enum
 
 api = DataLoader()
 
-
 st.set_page_config(
     page_title="First Trade",
     page_icon="📈",
@@ -17,19 +16,42 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={},
 )
-# st.title('Taiwan Stock Data Viewer')
-# st.markdown('---')
+
+
+def get_buy_sell_strategy():
+    buy_val, sell_val = utils.strategy_map.get(
+        st.session_state.my_input,
+        (utils.BuyStrategy.BOLL_KD30.value, utils.SellStrategy.KD70.value),
+    )
+    st.session_state["buy_select"] = buy_val
+    st.session_state["sell_select"] = sell_val
+
+
+ticker = st.text_input(
+    "請輸入股票代號:",
+    key="my_input",
+    on_change=get_buy_sell_strategy,
+)
 
 with st.form(key="form"):
-    ticker = st.text_input("請輸入股票代號:", value="")
-    buy_strategy = st.selectbox(
-        "買點條件:", options=[strategy.value for strategy in utils.BuyStrategy]
-    )
-    sell_strategy = st.selectbox(
-        "賣點條件:", options=[strategy.value for strategy in utils.SellStrategy]
-    )
-    show_high_close_signal = st.checkbox("高檔", True)
-    show_high_vol_signal = st.checkbox("爆量", True)
+    select_col1, select_col2 = st.columns(2)
+    with select_col1:
+        buy_strategy = st.selectbox(
+            "買點條件:",
+            options=[strategy.value for strategy in utils.BuyStrategy],
+            key="buy_select",
+        )
+    with select_col2:
+        sell_strategy = st.selectbox(
+            "賣點條件:",
+            options=[strategy.value for strategy in utils.SellStrategy],
+            key="sell_select",
+        )
+    check_col1, check_col2, check_col3, check_col4 = st.columns(4)
+    with check_col1:
+        show_high_close_signal = st.checkbox("高檔", True)
+    with check_col2:
+        show_high_vol_signal = st.checkbox("爆量", True)
     submitted = st.form_submit_button("執行")
 
 if submitted:
@@ -147,7 +169,9 @@ if submitted:
             return styles
 
         if not df_display.empty:
-            styled_df = df_display.style.apply(style_df, axis=None)
+            styled_df = df_display.style.apply(style_df, axis=None).format(
+                {"Volume": "{:,.0f}"}
+            )
             st.dataframe(
                 styled_df,
                 column_config={

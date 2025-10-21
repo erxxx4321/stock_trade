@@ -6,8 +6,10 @@ from FinMind.data import DataLoader
 
 api = DataLoader()
 plt.rcParams["font.sans-serif"] = [
-    "Microsoft JhengHei",
     "Arial Unicode MS",
+    "Microsoft YaHei",
+    "SimHei",
+    "Noto Sans CJK TC",
 ]
 plt.rcParams["axes.unicode_minus"] = False
 

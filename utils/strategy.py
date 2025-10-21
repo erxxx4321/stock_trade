@@ -6,6 +6,7 @@ from enum import Enum
 class BuyStrategy(Enum):
     BOLL_KD30 = "布林下軌KD<30"
     SMA5_SMA20 = "SMA5_20"
+    SMA10_SMA50 = "SMA10_50"
     SMA20_SMA60 = "SMA20_60"
     EMA20_EMA60 = "EMA20_60"
     EMA10_EMA50 = "EMA10_50"
@@ -87,6 +88,7 @@ class EMA_CROSSOVER(BaseStrategy):
 buy_strategy_group = {
     BuyStrategy.BOLL_KD30.value: BOLL_KD30(),
     BuyStrategy.SMA5_SMA20.value: SMA_CROSSOVER(n1=5, n2=20),
+    BuyStrategy.SMA10_SMA50.value: SMA_CROSSOVER(n1=10, n2=50),
     BuyStrategy.SMA20_SMA60.value: SMA_CROSSOVER(n1=20, n2=60),
     BuyStrategy.EMA20_EMA60.value: EMA_CROSSOVER(n1=20, n2=60),
     BuyStrategy.EMA10_EMA50.value: EMA_CROSSOVER(n1=10, n2=50),
@@ -96,6 +98,13 @@ sell_strategy_group = {
     SellStrategy.KD70.value: KD70(),
     SellStrategy.KD75.value: KD75(),
     SellStrategy.KD80.value: KD80(),
+}
+
+strategy_map = {
+    "9958": (BuyStrategy.EMA20_EMA60.value, SellStrategy.KD70.value),
+    "2228": (BuyStrategy.SMA5_SMA20.value, SellStrategy.KD70.value),
+    "3231": (BuyStrategy.BOLL_KD30.value, SellStrategy.BOLL_UP.value),
+    "2634": (BuyStrategy.EMA10_EMA50.value, SellStrategy.KD80.value),
 }
 
 

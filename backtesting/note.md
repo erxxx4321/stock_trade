@@ -1,14 +1,3 @@
-## Stock backtesting strategy
-
-| Stock code | Buy                    |   Sell    |
-| ---------- | ---------------------- | :-------: |
-| **9958**   | EMA20 cross EMA60      |  KD > 70  |
-| **2228**   | SMA5 cross SMA20       |  KD > 70  |
-| **3231**   | <= BUL_LOW and KD < 30 | >= BUL_UP |
-| **2634**   | EMA10 cross EMA50      |  KD > 80  |
-|            |                        |           |
-|            |                        |           |
-
 ## US and TW
 
 | 美國企業                  | 產業領域             | 台灣供應鏈關係                                                                                                                                       | 相關台灣廠商                                            |
