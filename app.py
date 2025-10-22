@@ -5,9 +5,24 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from FinMind.data import DataLoader
 import utils
-from enum import Enum
 
 api = DataLoader()
+watch_list = utils.query_data(
+    "SELECT stock_code, buy_strategy, sell_strategy FROM watch_list;"
+)
+strategy_map = {}
+for stock_code, buy_strategy, sell_strategy in watch_list:
+    strategy_map[stock_code] = (buy_strategy, sell_strategy)
+
+
+def get_buy_sell_strategy():
+    buy_val, sell_val = strategy_map.get(
+        st.session_state.my_input,
+        (utils.BuyStrategy.BOLL_KD30.value, utils.SellStrategy.KD70.value),
+    )
+    st.session_state["buy_select"] = buy_val
+    st.session_state["sell_select"] = sell_val
+
 
 st.set_page_config(
     page_title="First Trade",
@@ -16,15 +31,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={},
 )
-
-
-def get_buy_sell_strategy():
-    buy_val, sell_val = utils.strategy_map.get(
-        st.session_state.my_input,
-        (utils.BuyStrategy.BOLL_KD30.value, utils.SellStrategy.KD70.value),
-    )
-    st.session_state["buy_select"] = buy_val
-    st.session_state["sell_select"] = sell_val
 
 
 ticker = st.text_input(
