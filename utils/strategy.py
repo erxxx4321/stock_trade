@@ -1,15 +1,20 @@
 from abc import ABC, abstractmethod
 import pandas as pd
 from enum import Enum
+from backtesting.lib import crossover
 
 
 class BuyStrategy(Enum):
     BOLL_KD30 = "BOLL_KD30"
-    SMA5_SMA20 = "SMA5_SMA20"
-    SMA10_SMA50 = "SMA10_SMA50"
-    SMA20_SMA60 = "SMA20_SMA60"
-    EMA20_EMA60 = "EMA20_EMA60"
-    EMA10_EMA50 = "EMA10_EMA50"
+    SMA_5_20 = "SMA_5_20"
+    SMA_10_20 = "SMA_10_20"
+    SMA_10_50 = "SMA_10_50"
+    SMA_10_60 = "SMA_10_60"
+    EMA_20_50 = "EMA_20_50"
+    EMA_20_60 = "EMA_20_60"
+    EMA_10_50 = "EMA_10_50"
+    EMA_10_100 = "EMA_10_100"
+    EMA_10_120 = "EMA_10_120"
     # BOLL_RSI30 = "布林下軌RSI<30"
     # VOL_KD30 = "成交量KD<30"
 
@@ -60,14 +65,16 @@ class SMA_CROSSOVER(BaseStrategy):
         self.n2 = n2
 
     def get_condition(self, df: pd.DataFrame) -> pd.Series:
-        sma_fast = df["Close"].rolling(window=self.n1).mean()
-        sma_slow = df["Close"].rolling(window=self.n2).mean()
+        sma_n1 = df["Close"].rolling(window=self.n1).mean()
+        sma_n2 = df["Close"].rolling(window=self.n2).mean()
 
-        # Previous period SMAs for crossover detection
-        sma_fast_prev = sma_fast.shift(1)
-        sma_slow_prev = sma_slow.shift(1)
+        sma_n1_prev = sma_n1.shift(1)
+        sma_n2_prev = sma_n2.shift(1)
 
-        return (sma_fast > sma_slow) & (sma_fast_prev <= sma_slow_prev)
+        if self.n1 < self.n2:
+            return (sma_n1 > sma_n2) & (sma_n1_prev <= sma_n2_prev)
+        elif self.n1 > self.n2:
+            return (sma_n1 < sma_n2) & (sma_n1_prev >= sma_n2_prev)
 
 
 class EMA_CROSSOVER(BaseStrategy):
@@ -85,13 +92,33 @@ class EMA_CROSSOVER(BaseStrategy):
         return (ema_fast > ema_slow) & (ema_fast_prev <= ema_slow_prev)
 
 
+def create_strategy(buy_strategy_enum: BuyStrategy):
+    name = buy_strategy_enum.name
+    parts = name.split("_")
+
+    if name == BuyStrategy.BOLL_KD30.name:
+        return BOLL_KD30()
+
+    elif len(parts) == 3:
+        indicator_type = parts[0]
+        try:
+            n1 = int(parts[1])
+            n2 = int(parts[2])
+        except ValueError:
+            raise ValueError(f"Could not parse n1/n2 from strategy name: {name}")
+
+        if indicator_type == "SMA":
+            return SMA_CROSSOVER(n1=n1, n2=n2)
+        elif indicator_type == "EMA":
+            return EMA_CROSSOVER(n1=n1, n2=n2)
+        else:
+            raise NotImplementedError(f"Unknown crossover type: {indicator_type}")
+    else:
+        raise NotImplementedError(f"Strategy {name} does not follow naming convention.")
+
+
 buy_strategy_group = {
-    BuyStrategy.BOLL_KD30.value: BOLL_KD30(),
-    BuyStrategy.SMA5_SMA20.value: SMA_CROSSOVER(n1=5, n2=20),
-    BuyStrategy.SMA10_SMA50.value: SMA_CROSSOVER(n1=10, n2=50),
-    BuyStrategy.SMA20_SMA60.value: SMA_CROSSOVER(n1=20, n2=60),
-    BuyStrategy.EMA20_EMA60.value: EMA_CROSSOVER(n1=20, n2=60),
-    BuyStrategy.EMA10_EMA50.value: EMA_CROSSOVER(n1=10, n2=50),
+    strategy.value: create_strategy(strategy) for strategy in BuyStrategy
 }
 sell_strategy_group = {
     SellStrategy.BOLL_UP.value: BOLL_UP(),

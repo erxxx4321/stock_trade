@@ -57,7 +57,7 @@ class SmaCross(Strategy):
             self.buy()
 
         elif crossover(self.sma2, self.sma1):
-            if self.position:
+            if self.position and self.position.pl > 0.0:
                 self.position.close()
             # self.sell()
 
@@ -105,6 +105,7 @@ class BOLL_KD30(Strategy):
 class SMA_KD(Strategy):
     n1 = 5
     n2 = 20
+    kd = 75
 
     def init(self):
         self.sma1 = self.I(SMA, self.data.Close, self.n1)
@@ -116,7 +117,7 @@ class SMA_KD(Strategy):
     def next(self):
         if crossover(self.sma1, self.sma2):
             self.buy()
-        elif (self.k[-1] > 75) and (self.d[-1] > 75):
+        elif (self.k[-1] > self.kd) and (self.d[-1] > self.kd):
             if self.position and self.position.pl > 0.0:
                 self.position.close()
 
