@@ -10,6 +10,7 @@ class BuyStrategy(Enum):
     SMA_10_20 = "SMA_10_20"
     SMA_10_50 = "SMA_10_50"
     SMA_10_60 = "SMA_10_60"
+    EMA_5_20 = "EMA_5_20"
     EMA_20_50 = "EMA_20_50"
     EMA_20_60 = "EMA_20_60"
     EMA_10_50 = "EMA_10_50"

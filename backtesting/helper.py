@@ -142,6 +142,7 @@ class SMA_BULL(Strategy):
 class EMA_KD(Strategy):
     n1 = 9
     n2 = 20
+    kd = 75
 
     def init(self):
         self.ema1 = self.I(EMA, self.data.Close, self.n1)
@@ -154,7 +155,7 @@ class EMA_KD(Strategy):
         if crossover(self.ema1, self.ema2):
             self.buy()
 
-        elif (self.k[-1] > 75) and (self.d[-1] > 75):
+        elif (self.k[-1] > self.kd) and (self.d[-1] > self.kd):
             if self.position and self.position.pl > 0.0:
                 self.position.close()
 
