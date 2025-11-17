@@ -157,7 +157,7 @@ if submitted:
                 columns=["stock_id", "Adj_Close", "Open", "High", "Low", "Volume"]
             )
         else:
-            df = df.drop(columns=["stock_id", "Adj_Close", "Open", "High", "Low"])
+            df = df.drop(columns=["stock_id", "Open", "High", "Low"])
 
         df = df.sort_index(ascending=False)
         if not df.empty:
