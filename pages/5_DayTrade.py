@@ -40,6 +40,9 @@ def classify_single_candle(df):
     conditions = []
     classifications = []
 
+    is_bullish = df["Close"] > df["Open"]
+    is_bearish = df["Close"] < df["Open"]
+
     # 1. 實體很小的紡錘線/十字線
     condition = body_ratio < 0.3
     conditions.append(condition)
@@ -51,12 +54,12 @@ def classify_single_candle(df):
     classifications.append("Long_Body")
 
     # 3. 錘子線 (下影線很長，實體在上部)
-    condition = (lower_wick_ratio > 0.6) & (body_ratio < 0.4)
+    condition = (lower_wick_ratio > 0.6) & (body_ratio < 0.4) & is_bullish
     conditions.append(condition)
     classifications.append("Hammer")
 
     # 4. 吊頸線 (形態同錘子，但出現在上升趨勢後)
-    condition = (lower_wick_ratio > 0.6) & (body_ratio < 0.4)
+    condition = (lower_wick_ratio > 0.6) & (body_ratio < 0.4) & is_bearish
     conditions.append(condition)
     classifications.append("Hanging_Man")
 
@@ -157,11 +160,10 @@ if submitted:
                 columns=["stock_id", "Adj_Close", "Open", "High", "Low", "Volume"]
             )
         else:
-            df = df.drop(columns=["stock_id", "Open", "High", "Low"])
+            df = df.drop(columns=["stock_id", "Open", "High", "Low", "Trading_money", "Spread", "Turnover"])
 
         df = df.sort_index(ascending=False)
         if not df.empty:
             st.dataframe(df)
-            st.image("candle.jpg", caption=None, width=None, output_format="auto")
     except Exception as e:
         st.error(f"發生錯誤: {e}")
