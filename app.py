@@ -63,7 +63,7 @@ with st.form(key="form"):
 if submitted:
     try:
         today = datetime.today()
-        start_date = (today - relativedelta(months=24)).strftime("%Y-%m-%d")
+        start_date = (today - relativedelta(years=3)).strftime("%Y-%m-%d")
         end_date = today.strftime("%Y-%m-%d")
 
         st.write(f"正在取得 **{ticker}** 從 **{start_date}** 到 **{end_date}** 的資料")
