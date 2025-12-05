@@ -13,6 +13,10 @@ watch_list = utils.query_data(
 strategy_map = {}
 for stock_code, buy_strategy, sell_strategy in watch_list:
     strategy_map[stock_code] = (buy_strategy, sell_strategy)
+note_date = utils.query_data("SELECT note_name, note_date FROM note_date;")
+notedate_map = {}
+for note_name, note_date in note_date:
+    notedate_map[note_name] = note_date
 
 
 def get_buy_sell_strategy():
@@ -172,6 +176,14 @@ if submitted:
                 styles.loc[df["High_Close"], ["Close"]] = "background-color: #f8d7da"
             if show_high_vol_signal:
                 styles.loc[df["High_Volume"], ["Volume"]] = "background-color: #f8d7da"
+
+            df_dates = df["date"]
+            for index, date_str in df_dates.items():
+                if date_str in notedate_map:
+                    hint_text = notedate_map[date_str]
+                    date_style = f"background-color: #AEC6CF; font-weight: bold; cursor: help; title: {hint_text}"
+                    styles.loc[index, "date"] = date_style
+
             return styles
 
         if not df_display.empty:
