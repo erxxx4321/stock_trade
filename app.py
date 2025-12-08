@@ -13,16 +13,16 @@ watch_list = utils.query_data(
 strategy_map = {}
 for stock_code, buy_strategy, sell_strategy in watch_list:
     strategy_map[stock_code] = (buy_strategy, sell_strategy)
-note_date = utils.query_data("SELECT note_name, note_date FROM note_date;")
-notedate_map = {}
-for note_name, note_date in note_date:
-    notedate_map[note_name] = note_date
 
+note_dates = utils.query_data("SELECT note_name, note_date FROM note_date;")
+notedate_map = {}
+for note_name, note_date in note_dates:
+    notedate_map[note_date] = note_name
 
 def get_buy_sell_strategy():
     buy_val, sell_val = strategy_map.get(
         st.session_state.my_input,
-        (utils.BuyStrategy.BOLL_KD30.value, utils.SellStrategy.KD70.value),
+        ("", ""),
     )
     st.session_state["buy_select"] = buy_val
     st.session_state["sell_select"] = sell_val
@@ -48,13 +48,13 @@ with st.form(key="form"):
     with select_col1:
         buy_strategy = st.selectbox(
             "買點條件:",
-            options=[strategy.value for strategy in utils.BuyStrategy],
+            options=[""]+[strategy.value for strategy in utils.BuyStrategy],
             key="buy_select",
         )
     with select_col2:
         sell_strategy = st.selectbox(
             "賣點條件:",
-            options=[strategy.value for strategy in utils.SellStrategy],
+            options=[""]+[strategy.value for strategy in utils.SellStrategy],
             key="sell_select",
         )
     check_col1, check_col2, check_col3, check_col4 = st.columns(4)
@@ -118,8 +118,9 @@ if submitted:
             on="date",
             how="left",
         )
+        if df_per.empty:
+            df_per = pd.DataFrame(columns=["date", "PER", "PBR"])
         df = pd.merge(df, df_per[["date", "PER", "PBR"]], on="date", how="left")
-        # print(df)
 
         buy_condition, sell_condition = utils.get_trade_condition(
             df, buy_strategy, sell_strategy
@@ -179,10 +180,14 @@ if submitted:
 
             df_dates = df["date"]
             for index, date_str in df_dates.items():
-                if date_str in notedate_map:
-                    hint_text = notedate_map[date_str]
-                    date_style = f"background-color: #AEC6CF; font-weight: bold; cursor: help; title: {hint_text}"
-                    styles.loc[index, "date"] = date_style
+                curr_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                for note_date, note_name in notedate_map.items():
+                    note_date = datetime.strptime(note_date, '%Y-%m-%d').date()
+                    date_diff = (note_date - curr_date).days
+                    if  0 <= date_diff <= 10:
+                        date_style = "background-color: #FFB3C1; font-weight: bold;"
+                        styles.loc[index, "date"] = date_style
+                        df.loc[index, "date"] = f"{date_str} ({note_name})"
 
             return styles
 
@@ -199,6 +204,8 @@ if submitted:
                     "Investment_Trust": None,
                     "PER": None,
                     "PBR": None,
+                    "Upper": None,
+                    "Lower": None,
                 },
             )
             # styled_df = styled_df.map(style_rsi, subset=['rsi'])

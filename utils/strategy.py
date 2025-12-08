@@ -11,21 +11,24 @@ class BuyStrategy(Enum):
     SMA_10_50 = "SMA_10_50"
     SMA_10_60 = "SMA_10_60"
     EMA_5_20 = "EMA_5_20"
+    EMA_5_60 = "EMA_5_60"
     EMA_20_50 = "EMA_20_50"
     EMA_20_60 = "EMA_20_60"
     EMA_10_50 = "EMA_10_50"
     EMA_10_100 = "EMA_10_100"
     EMA_10_120 = "EMA_10_120"
+    KD20 = "KD<20"
     # BOLL_RSI30 = "布林下軌RSI<30"
     # VOL_KD30 = "成交量KD<30"
 
 
 class SellStrategy(Enum):
     BOLL_UP = "BOLL_UP"
-    # FIVE_MA_VOL = "5MA成交量"
+    # FIVE_MA_VOL = "5MA成交量
     KD70 = "KD>70"
     KD75 = "KD>75"
     KD80 = "KD>80"
+    KD85 = "KD>85"
 
 
 # 抽象基底類別
@@ -44,6 +47,9 @@ class BOLL_UP(BaseStrategy):
     def get_condition(self, df: pd.DataFrame) -> pd.Series:
         return df["Close"] >= df["Upper"]
 
+class KD20(BaseStrategy):
+    def get_condition(self, df: pd.DataFrame) -> pd.Series:
+        return (df["k"] < 20) & (df["d"] < 20)
 
 class KD70(BaseStrategy):
     def get_condition(self, df: pd.DataFrame) -> pd.Series:
@@ -58,6 +64,10 @@ class KD75(BaseStrategy):
 class KD80(BaseStrategy):
     def get_condition(self, df: pd.DataFrame) -> pd.Series:
         return (df["k"] > 80) & (df["d"] > 80)
+    
+class KD85(BaseStrategy):
+    def get_condition(self, df: pd.DataFrame) -> pd.Series:
+        return (df["k"] > 85) & (df["d"] > 85)
 
 
 class SMA_CROSSOVER(BaseStrategy):
@@ -99,6 +109,8 @@ def create_strategy(buy_strategy_enum: BuyStrategy):
 
     if name == BuyStrategy.BOLL_KD30.name:
         return BOLL_KD30()
+    if name == BuyStrategy.KD20.name:
+        return KD20()
 
     elif len(parts) == 3:
         indicator_type = parts[0]
@@ -126,10 +138,18 @@ sell_strategy_group = {
     SellStrategy.KD70.value: KD70(),
     SellStrategy.KD75.value: KD75(),
     SellStrategy.KD80.value: KD80(),
+    SellStrategy.KD85.value: KD85(),
 }
 
 
 def get_trade_condition(df: pd.DataFrame, buy_strategy: str, sell_strategy: str):
-    buy_condition = buy_strategy_group.get(buy_strategy).get_condition(df)
-    sell_condition = sell_strategy_group.get(sell_strategy).get_condition(df)
+    if buy_strategy == "":
+        buy_condition = pd.Series([False] * len(df), index=df.index)
+    else:
+        buy_condition =  buy_strategy_group.get(buy_strategy).get_condition(df)
+
+    if sell_strategy == "":
+        sell_condition = pd.Series([False] * len(df), index=df.index)
+    else:
+        sell_condition = sell_strategy_group.get(sell_strategy).get_condition(df)
     return buy_condition, sell_condition
