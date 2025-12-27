@@ -107,9 +107,7 @@ if submitted:
         df_rsi = utils.calculate_rsi(df_stock.copy())
 
         # 3. 將計算結果合併回股價資料
-        df = pd.merge(
-            df_stock, df_kdj[["k", "d"]], left_index=True, right_index=True, how="left"
-        )
+        df = pd.merge(df_stock, df_kdj[["k", "d"]], left_index=True, right_index=True, how="left")
         df = pd.merge(df, df_bb, left_index=True, right_index=True, how="left")
         df = pd.merge(df, df_rsi, left_index=True, right_index=True, how="left")
         df = pd.merge(

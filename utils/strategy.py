@@ -29,6 +29,7 @@ class SellStrategy(Enum):
     KD75 = "KD>75"
     KD80 = "KD>80"
     KD85 = "KD>85"
+    SMA_20_10 = "SMA_20_10"
 
 
 # 抽象基底類別
@@ -79,13 +80,8 @@ class SMA_CROSSOVER(BaseStrategy):
         sma_n1 = df["Close"].rolling(window=self.n1).mean()
         sma_n2 = df["Close"].rolling(window=self.n2).mean()
 
-        sma_n1_prev = sma_n1.shift(1)
-        sma_n2_prev = sma_n2.shift(1)
-
-        if self.n1 < self.n2:
-            return (sma_n1 > sma_n2) & (sma_n1_prev <= sma_n2_prev)
-        elif self.n1 > self.n2:
-            return (sma_n1 < sma_n2) & (sma_n1_prev >= sma_n2_prev)
+        condition = (sma_n1 > sma_n2) & (sma_n1.shift(1) <= sma_n2.shift(1))
+        return condition.fillna(False)
 
 
 class EMA_CROSSOVER(BaseStrategy):
@@ -139,6 +135,7 @@ sell_strategy_group = {
     SellStrategy.KD75.value: KD75(),
     SellStrategy.KD80.value: KD80(),
     SellStrategy.KD85.value: KD85(),
+    SellStrategy.SMA_20_10.value: SMA_CROSSOVER(n1=20, n2=10),
 }
 
 
