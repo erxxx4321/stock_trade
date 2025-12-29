@@ -41,11 +41,11 @@ if st.button("分析季節性"):
             # 顯示結果
             st.success("分析完成！")
 
-            plt.clf()
-            plt.close("all")
-
-            fig = m.plot(forecast)
-            st.pyplot(fig, clear_figure=True)
+            # 只顯示季節性組件
+            fig_seasonality = m.plot_components(forecast, components=["seasonality"])
+            st.plotly_chart(fig_seasonality, use_container_width=True)
 
         except Exception as e:
             st.error(f"❌ 發生未預期的錯誤: {str(e)}")
+            import traceback
+            st.error(traceback.format_exc())
