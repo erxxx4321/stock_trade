@@ -19,6 +19,7 @@ notedate_map = {}
 for note_name, note_date in note_dates:
     notedate_map[note_date] = note_name
 
+
 def get_buy_sell_strategy():
     buy_val, sell_val = strategy_map.get(
         st.session_state.my_input,
@@ -48,13 +49,13 @@ with st.form(key="form"):
     with select_col1:
         buy_strategy = st.selectbox(
             "買點條件:",
-            options=[""]+[strategy.value for strategy in utils.BuyStrategy],
+            options=[""] + [strategy.value for strategy in utils.BuyStrategy],
             key="buy_select",
         )
     with select_col2:
         sell_strategy = st.selectbox(
             "賣點條件:",
-            options=[""]+[strategy.value for strategy in utils.SellStrategy],
+            options=[""] + [strategy.value for strategy in utils.SellStrategy],
             key="sell_select",
         )
     check_col1, check_col2, check_col3, check_col4 = st.columns(4)
@@ -126,6 +127,15 @@ if submitted:
             df, buy_strategy, sell_strategy
         )
 
+        # 使用 .shift(1) 取得前一日收盤價
+        df["Prev_Close"] = df["Close"].shift(1)
+
+        # 計算漲跌幅百分比
+        df["Change"] = ((df["Close"] - df["Prev_Close"]) / df["Prev_Close"]) * 100
+
+        # 刪除輔助欄位
+        df.drop(columns=["Prev_Close"], inplace=True)
+
         # 新增訊號欄位
         df["Signal"] = np.select(
             [buy_condition, sell_condition], ["Buy", "Sell"], default=""
@@ -147,6 +157,7 @@ if submitted:
                 "High",
                 "Low",
                 "Close",
+                "Change",
                 "Signal",
                 "Volume",
                 "k",
@@ -180,11 +191,11 @@ if submitted:
 
             df_dates = df["date"]
             for index, date_str in df_dates.items():
-                curr_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                curr_date = datetime.strptime(date_str, "%Y-%m-%d").date()
                 for note_date, note_name in notedate_map.items():
-                    note_date = datetime.strptime(note_date, '%Y-%m-%d').date()
+                    note_date = datetime.strptime(note_date, "%Y-%m-%d").date()
                     date_diff = (note_date - curr_date).days
-                    if  0 <= date_diff <= 10:
+                    if 0 <= date_diff <= 10:
                         date_style = "background-color: #FFB3C1; font-weight: bold;"
                         styles.loc[index, "date"] = date_style
                         df.loc[index, "date"] = f"{date_str} ({note_name})"
@@ -198,6 +209,8 @@ if submitted:
             st.dataframe(
                 styled_df,
                 column_config={
+                    "High": None,
+                    "Low": None,
                     "High_Close": None,
                     "High_Volume": None,
                     "Foreign_Investor": None,
@@ -206,6 +219,10 @@ if submitted:
                     "PBR": None,
                     "Upper": None,
                     "Lower": None,
+                    "Change": st.column_config.NumberColumn(
+                        format="%.2f%%",  # 格式：小數點後兩位，並加上 % 符號
+                        help="當日收盤價相較於前一日的漲跌幅百分比",
+                    ),
                 },
             )
             # styled_df = styled_df.map(style_rsi, subset=['rsi'])

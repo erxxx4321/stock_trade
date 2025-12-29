@@ -151,6 +151,15 @@ if submitted:
             inplace=True,
         )
 
+        # 使用 .shift(1) 取得前一日收盤價
+        df["Prev_Close"] = df["Close"].shift(1)
+
+        # 計算漲跌幅百分比
+        df["Change_Pct"] = ((df["Close"] - df["Prev_Close"]) / df["Prev_Close"]) * 100
+
+        # 刪除輔助欄位
+        df.drop(columns=["Prev_Close"], inplace=True)
+
         df["Strength"] = candle_strength(df)
         df["Candle_Type"] = classify_single_candle(df)
         df["20MA"] = df["Close"].rolling(window=20).mean().round(2)
@@ -160,10 +169,29 @@ if submitted:
                 columns=["stock_id", "Adj_Close", "Open", "High", "Low", "Volume"]
             )
         else:
-            df = df.drop(columns=["stock_id", "Open", "High", "Low", "Trading_money", "Spread", "Turnover"])
+            df = df.drop(
+                columns=[
+                    "stock_id",
+                    "Open",
+                    "High",
+                    "Low",
+                    "Trading_money",
+                    "Spread",
+                    "Turnover",
+                ]
+            )
 
         df = df.sort_index(ascending=False)
         if not df.empty:
-            st.dataframe(df)
+            st.dataframe(
+                df,
+                column_config={
+                    "Change_Pct": st.column_config.NumberColumn(
+                        "漲跌幅",  # 顯示給使用者看的標題
+                        format="%.2f%%",  # 格式：小數點後兩位，並加上 % 符號
+                        help="當日收盤價相較於前一日的漲跌幅百分比",
+                    )
+                },
+            )
     except Exception as e:
         st.error(f"發生錯誤: {e}")
