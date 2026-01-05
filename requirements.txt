@@ -8,3 +8,4 @@ FinMind
 backtesting
 statsmodels
 streamlit
+beautifulsoup4
