@@ -51,25 +51,24 @@ def run_strategy(df, strategy_name):
         "EMA_KD": {
             "class": helper.EMA_KD,
             "optimize": True,
-            "params": {"n1": [5, 10, 20, 50], "n2": [20, 50, 60, 100, 120], "kd": 85},
+            "params": {"n1": [5, 10, 20], "n2": [20, 50, 60, 100, 120], "kd": 85},
         },
         "EMA_VWAP_KD": {
             "class": helper.EMA_VWAP_KD,
             "optimize": True,
-            "params": {"n1": [5, 10, 20, 50], "n2": [10, 20, 50, 60, 100, 120]},
+            "params": {"n1": [5, 10, 20], "n2": [10, 20, 50, 60, 100, 120], "kd": 85},
         },
         "SmaCross": {
             "class": helper.SmaCross,
             "optimize": True,
-            "params": {"n1": [5, 10, 20, 50], "n2": [10, 20, 50, 60, 100, 120]},
+            "params": {"n1": [5, 10, 20], "n2": [10, 20, 50, 60, 100, 120]},
         },
         "SMA_KD": {
             "class": helper.SMA_KD,
             "optimize": True,
             "params": {
-                "n1": [5, 10, 20, 50],
-                "n2": [10, 20, 50, 60, 100, 120],
-                "kd": 85,
+                "n1": [5, 10, 20],
+                "n2": [10, 20, 50, 60, 100, 120]
             },
         },
         "BOLL_KD30": {
@@ -168,7 +167,7 @@ def main():
         if results:
             best_strategy = max(results, key=lambda k: results[k]["equity"])
             print("\n" + "=" * 60)
-            print("🏆 最佳策略評估結果")
+            print(f"🏆 最佳策略評估結果 {ticker}")
             print("=" * 60)
             print(f"最佳策略: {best_strategy}")
             print(f"最終資產淨值: ${results[best_strategy]['equity']:,.2f}")

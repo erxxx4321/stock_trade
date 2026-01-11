@@ -7,10 +7,12 @@ from backtesting.lib import crossover
 class BuyStrategy(Enum):
     BOLL_KD30 = "BOLL_KD30"
     SMA_5_20 = "SMA_5_20"
+    SMA_5_120 = "SMA_5_120"
     SMA_10_20 = "SMA_10_20"
     SMA_10_50 = "SMA_10_50"
     SMA_10_60 = "SMA_10_60"
     EMA_5_20 = "EMA_5_20"
+    EMA_10_20 = "EMA_10_20"
     EMA_5_60 = "EMA_5_60"
     EMA_20_50 = "EMA_20_50"
     EMA_20_60 = "EMA_20_60"
@@ -30,7 +32,8 @@ class SellStrategy(Enum):
     KD80 = "KD>80"
     KD85 = "KD>85"
     SMA_20_10 = "SMA_20_10"
-
+    SMA_20_5 = "SMA_20_5"
+    SMA_120_5 = "SMA_120_5"
 
 # 抽象基底類別
 class BaseStrategy(ABC):
@@ -136,6 +139,8 @@ sell_strategy_group = {
     SellStrategy.KD80.value: KD80(),
     SellStrategy.KD85.value: KD85(),
     SellStrategy.SMA_20_10.value: SMA_CROSSOVER(n1=20, n2=10),
+    SellStrategy.SMA_20_5.value: SMA_CROSSOVER(n1=20, n2=5),
+    SellStrategy.SMA_120_5.value: SMA_CROSSOVER(n1=120, n2=5),
 }
 
 

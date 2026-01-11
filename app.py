@@ -82,11 +82,12 @@ if submitted:
                 "max": "High",
                 "min": "Low",
                 "close": "Close",
+                "open": "Open",
                 "Trading_Volume": "Volume",
             },
             inplace=True,
         )
-
+        
         # 取得外資、投信買賣超資料
         df_investor = api.taiwan_stock_institutional_investors(
             stock_id=ticker, start_date=start_date, end_date=end_date
@@ -147,6 +148,46 @@ if submitted:
             df["Volume"] == df["Volume"].rolling(window=60, min_periods=1).max()
         )
 
+        # --- 增加輔助指標計算 ---
+        df["Vol_MA5"] = df["Volume"].rolling(window=5).mean()
+        df["Close_MA5"] = df["Close"].rolling(window=5).mean()
+
+        # 計算 K 線組成，用於判斷「長上影線」
+        df["Body"] = abs(df["Close"] - df["Open"]) # 這裡需確保 df 有 Open 欄位
+        df["Upper_Shadow"] = df["High"] - df[["Close", "Open"]].max(axis=1)
+
+        # 1. 天量見頂 (Blow-off Top)
+        # 條件：成交量 > 5日均量 2.5 倍 且 有長上影線 且 位於 60 日高點
+        df["Signal_BlowOff"] = (
+            (df["Volume"] > df["Vol_MA5"] * 2.5) & 
+            (df["Upper_Shadow"] > df["Body"]) & 
+            df["High_Close"]
+        )
+
+        # 2. 量價背離 (Divergence) - 簡化版：股價創 20 日新高但量卻低於 5 日均量
+        df["Signal_Divergence"] = (
+            (df["Close"] > df["Close"].rolling(window=20).max().shift(1)) & 
+            (df["Volume"] < df["Vol_MA5"])
+        )
+
+        # 3. 高檔爆量長黑 (Bearish Volume)
+        # 條件：跌幅 > 3% 且 成交量大於 5 日均量 且 股價低於 5 日線
+        df["Signal_Bearish"] = (
+            (df["Change"] < -3) & 
+            (df["Volume"] > df["Vol_MA5"]) & 
+            (df["Close"] < df["Close_MA5"])
+        )
+
+        # 4. 警示文字整合
+        def get_warning_text(row):
+            warnings = []
+            if row["Signal_BlowOff"]: warnings.append("⚠️天量見頂")
+            if row["Signal_Divergence"]: warnings.append("📉量價背離")
+            if row["Signal_Bearish"]: warnings.append("🚫爆量長黑")
+            return " ".join(warnings)
+
+        df["Warning"] = df.apply(get_warning_text, axis=1)
+
         # 5. 排序並顯示資料
         df = df.sort_index(ascending=False)
         df_display = df[
@@ -156,6 +197,7 @@ if submitted:
                 "Low",
                 "Close",
                 "Change",
+                "Warning",
                 "Signal",
                 "Volume",
                 "k",
