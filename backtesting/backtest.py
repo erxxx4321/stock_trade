@@ -51,12 +51,12 @@ def run_strategy(df, strategy_name):
         "EMA_KD": {
             "class": helper.EMA_KD,
             "optimize": True,
-            "params": {"n1": [5, 10, 20], "n2": [20, 50, 60, 100, 120], "kd": 85},
+            "params": {"n1": [5, 10, 20], "n2": [20, 50, 60, 100, 120], "kd": 75},
         },
         "EMA_VWAP_KD": {
             "class": helper.EMA_VWAP_KD,
             "optimize": True,
-            "params": {"n1": [5, 10, 20], "n2": [10, 20, 50, 60, 100, 120], "kd": 85},
+            "params": {"n1": [5, 10, 20], "n2": [10, 20, 50, 60, 100, 120], "kd": 75},
         },
         "SmaCross": {
             "class": helper.SmaCross,
@@ -68,7 +68,8 @@ def run_strategy(df, strategy_name):
             "optimize": True,
             "params": {
                 "n1": [5, 10, 20],
-                "n2": [10, 20, 50, 60, 100, 120]
+                "n2": [10, 20, 50, 60, 100, 120],
+                "kd": 75
             },
         },
         "BOLL_KD30": {
