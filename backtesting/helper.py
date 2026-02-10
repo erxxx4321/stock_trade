@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from enum import Enum
 from backtesting import Strategy
 from backtesting.lib import crossover
@@ -21,11 +22,13 @@ def calculate_kdj(high_data, low_data, close_data, n=9):
 
     ln = low_series.rolling(window=n).min()
     hn = high_series.rolling(window=n).max()
-    rsv = ((close_series - ln) / (hn - ln)) * 100
+    rsv = ((close_series - ln) / (hn - ln).replace(0, np.nan)) * 100
+    rsv = rsv.fillna(0)  # 處理空值
+
     k = rsv.ewm(com=2, adjust=False).mean()
     d = k.ewm(com=2, adjust=False).mean()
 
-    return k, d
+    return k.to_numpy(), d.to_numpy()
 
 
 def EMA(values, n):
@@ -176,6 +179,10 @@ class EMA_VWAP_KD(Strategy):
         )
 
     def next(self):
+        # if self.position:
+        #     print(
+        #         f"日期: {self.data.index[-1]} | K: {self.k[-1]:.2f} | D: {self.d[-1]:.2f} | 獲利: {self.position.pl:.2f}"
+        #     )
         if crossover(self.ema1, self.ema2) and self.data.Close[-1] > self.vwap[-1]:
             self.buy()
 

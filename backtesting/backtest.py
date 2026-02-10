@@ -56,7 +56,7 @@ def run_strategy(df, strategy_name):
         "EMA_VWAP_KD": {
             "class": helper.EMA_VWAP_KD,
             "optimize": True,
-            "params": {"n1": [5, 10, 20], "n2": [10, 20, 50, 60, 100, 120], "kd": 85},
+            "params": {"n1": [5, 10, 20], "n2": [10, 20, 50, 60, 100, 120]},
         },
         "SmaCross": {
             "class": helper.SmaCross,
@@ -66,10 +66,7 @@ def run_strategy(df, strategy_name):
         "SMA_KD": {
             "class": helper.SMA_KD,
             "optimize": True,
-            "params": {
-                "n1": [5, 10, 20],
-                "n2": [10, 20, 50, 60, 100, 120]
-            },
+            "params": {"n1": [5, 10, 20], "n2": [10, 20, 50, 60, 100, 120]},
         },
         "BOLL_KD30": {
             "class": helper.BOLL_KD30,
@@ -84,9 +81,7 @@ def run_strategy(df, strategy_name):
         )
 
     config = strategy_config[strategy_name]
-    bt = Backtest(
-        df, config["class"], cash=100_000, commission=0.001425, finalize_trades=True
-    )
+    bt = Backtest(df, config["class"], cash=100_000, commission=0.001425)
 
     if config["optimize"]:
         stats = bt.optimize(maximize="Equity Final [$]", **config["params"])
