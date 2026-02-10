@@ -250,10 +250,6 @@ def scrape_factset_news(
 
         # 顯示資料庫內容
         if save_to_db and db:
-            print("\n" + "=" * 120)
-            print("資料庫中的所有 FactSet 新聞:")
-            print("=" * 120)
-            db.display_all()
             db.close()
 
         print(f"\n總結: 找到 {len(news_items)} 則 FactSet 新聞")
