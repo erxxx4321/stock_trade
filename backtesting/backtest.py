@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 from backtesting import Backtest
 from FinMind.data import DataLoader
 import helper
+import numpy as np
 
 # === 隱藏警告與進度條 ===
 warnings.filterwarnings("ignore")
@@ -23,14 +24,16 @@ def print_result(stats, strategy_name=None):
         [
             "Start",
             "End",
-            "Equity Final [$]",
-            "Return [%]",
-            "Buy & Hold Return [%]",
+            "Equity Final [$]",  # 最終資產淨值
+            "Equity Peak [$]",
+            "Return [%]",  # 總報酬率
+            "Buy & Hold Return [%]",  # 買入並持有報酬率（基準）
             "# Trades",
-            "Win Rate [%]",
-            "Sharpe Ratio",
-            "Max. Drawdown [%]",
-            "SQN",
+            "Win Rate [%]",  # 勝率
+            "Avg. Trade [%]",  # 平均盈利率 EV表現形式
+            "Sharpe Ratio",  # 夏普比率
+            "Max. Drawdown [%]",  # 最大回撤
+            "SQN",  # 系統品質數字
             "_trades",
             "_strategy",
         ]
@@ -41,8 +44,10 @@ def print_result(stats, strategy_name=None):
     trades = stats_display["_trades"]
     for _, trade in trades.iterrows():
         print(f"Buy date: {trade['EntryTime']}, Sell date: {trade['ExitTime']}")
+        # 對數收益率計算
+        trade["Log_Return"] = np.log(1 + trade["ReturnPct"])
         print(
-            f"Buy price: {trade['EntryPrice']}, Sell price: {trade['ExitPrice']}, P/L: {trade['ReturnPct']:.2%}"
+            f"Buy price: {trade['EntryPrice']}, Sell price: {trade['ExitPrice']}, P/L: {trade['ReturnPct']:.2%}, rt: {trade['Log_Return']:.2%}, PnL: {trade['PnL']:.2f}"
         )
 
 
