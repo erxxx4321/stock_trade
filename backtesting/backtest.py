@@ -89,12 +89,61 @@ def run_strategy(df, strategy_name):
     bt = Backtest(df, config["class"], cash=100_000, commission=0.001425)
 
     if config["optimize"]:
-        stats = bt.optimize(maximize="Equity Final [$]", **config["params"])
+        stats = bt.optimize(
+            maximize="Equity Final [$]",
+            **config["params"],
+            constraint=lambda p: p.n1 < p.n2 if "n2" in p else True,
+        )
     else:
         helper.BOLL_KD30.buy_strategy = helper.BuyStrategy.BOLL_KD30
         stats = bt.run()
 
     return stats
+
+
+def check_current_signal(stats, strategy_name):
+    """
+    依據回測結果的最後狀態，判定今日訊號
+    """
+    strategy_instance = stats["_strategy"]
+    df = strategy_instance.data.df
+    last_date = df.index[-1].strftime("%Y-%m-%d")
+
+    print(f"\n數據截點: {last_date}")
+    print(f"使用參數: {strategy_instance._params}")
+
+    # 這裡的邏輯需要對應你在 helper.py 裡的定義
+    # 範例：假設你的策略有 self.k, self.d 或 self.ma1, self.ma2
+
+    signal = "💡 觀望 (HOLD / WAIT)"
+
+    # 邏輯判斷示範 (請根據你 helper.py 實際指標名稱修改)
+    try:
+        # 檢查是否有未平倉部位
+        active_trades = strategy_instance.trades
+
+        if active_trades:
+            # 取得最後一筆開倉的交易 (通常只有一筆，除非你的策略支援分批進場)
+            current_trade = active_trades[0]
+            entry_date = current_trade.entry_time.strftime("%Y-%m-%d")
+            entry_price = current_trade.entry_price
+            current_price = df["Close"][-1]
+            pnl_pct = (current_price - entry_price) / entry_price
+
+            print(f"📊 目前狀態：【 🟢 持股中 】")
+            print(f"📅 買入日期：{entry_date}")
+            print(f"💰 買入價格：{entry_price:.2f}")
+            print(f"📈 目前現價：{current_price:.2f} (浮報: {pnl_pct:.2%})")
+
+            # 這裡可以加入賣出邏輯判定
+            # if 滿足賣出條件: print("🔔 建議：今日觸發賣出訊號")
+        else:
+            print(f"📊 目前狀態：【 ⚪ 空手觀望 】")
+            print(f"💡 建議：等待下一次買入訊號")  # 取得最後一根 K 線的價格與指標值
+
+    except Exception as e:
+        print(f"判定訊號時發生錯誤: {e}")
+        print("建議：請檢查 helper.py 中指標的變數名稱是否與此對接。")
 
 
 def main():
@@ -166,11 +215,14 @@ def main():
 
         if results:
             best_strategy = max(results, key=lambda k: results[k]["equity"])
+            best_stats = results[best_strategy]["stats"]
             print("\n" + "=" * 60)
             print(f"🏆 最佳策略評估結果 {ticker}")
             print("=" * 60)
             print(f"最佳策略: {best_strategy}")
             print(f"最終資產淨值: ${results[best_strategy]['equity']:,.2f}")
+            # --- 新增：判定今日訊號 ---
+            check_current_signal(best_stats, best_strategy)
             print("=" * 60)
         else:
             print("所有策略執行失敗。")
