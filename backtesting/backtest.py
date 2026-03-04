@@ -150,7 +150,7 @@ def main():
     parser = argparse.ArgumentParser(description="股票策略回測 CLI 工具")
     parser.add_argument("ticker", type=str, help="股票代號，例如：2317")
     parser.add_argument(
-        "-y", "--years", type=int, default=2, help="回測年數（預設 2 年）"
+        "-y", "--years", type=int, default=5, help="回測年數（預設 2 年）"
     )
     parser.add_argument(
         "-s",

@@ -4,6 +4,7 @@ python-dateutil
 matplotlib
 seaborn
 neuralprophet
+tqdm
 FinMind
 backtesting
 statsmodels
