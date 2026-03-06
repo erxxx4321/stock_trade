@@ -146,9 +146,57 @@ def check_current_signal(stats, strategy_name):
         print("建議：請檢查 helper.py 中指標的變數名稱是否與此對接。")
 
 
+def get_data(market, ticker, start_date, end_date):
+    """
+    根據市場別，統一使用 FinMind 下載資料
+    """
+    api = DataLoader()
+
+    if market == "tw":
+        df = api.taiwan_stock_daily(
+            stock_id=ticker, start_date=start_date, end_date=end_date
+        )
+        df = df.rename(
+            columns={
+                "max": "High",
+                "min": "Low",
+                "open": "Open",
+                "close": "Close",
+                "Trading_Volume": "Volume",
+            }
+        )
+    else:  # us 市場
+        df = api.us_stock_price(
+            stock_id=ticker, start_date=start_date, end_date=end_date
+        )
+
+    if df.empty:
+        print(f"錯誤：無法取得股票 {ticker} 在 {start_date} ~ {end_date} 的資料。")
+        return
+
+    # 清理無效價格（避免除零）
+    df = df[(df["Close"] > 0) & (df["Open"] > 0) & (df["High"] > 0) & (df["Low"] > 0)]
+    if df.empty:
+        print("錯誤：過濾後無有效價格資料。")
+        return
+
+    df.set_index("date", inplace=True)
+    df.index = pd.to_datetime(df.index)
+
+    return df
+
+
 def main():
     parser = argparse.ArgumentParser(description="股票策略回測 CLI 工具")
     parser.add_argument("ticker", type=str, help="股票代號，例如：2317")
+    parser.add_argument(
+        "-m",
+        "--market",
+        type=str,
+        choices=["tw", "us"],
+        default="tw",
+        help="市場：tw (台股, 預設), us (美股)",
+    )
     parser.add_argument(
         "-y", "--years", type=int, default=5, help="回測年數（預設 2 年）"
     )
@@ -171,32 +219,7 @@ def main():
     end_date = today.strftime("%Y-%m-%d")
 
     # 下載資料
-    api = DataLoader()
-    df = api.taiwan_stock_daily(
-        stock_id=ticker, start_date=start_date, end_date=end_date
-    )
-
-    if df.empty:
-        print(f"錯誤：無法取得股票 {ticker} 在 {start_date} ~ {end_date} 的資料。")
-        return
-
-    # 清理無效價格（避免除零）
-    df = df[(df["close"] > 0) & (df["open"] > 0) & (df["max"] > 0) & (df["min"] > 0)]
-    if df.empty:
-        print("錯誤：過濾後無有效價格資料。")
-        return
-
-    df.set_index("date", inplace=True)
-    df.index = pd.to_datetime(df.index)
-    df = df.rename(
-        columns={
-            "max": "High",
-            "min": "Low",
-            "open": "Open",
-            "close": "Close",
-            "Trading_Volume": "Volume",
-        }
-    )
+    df = get_data(args.market, args.ticker, start_date, end_date)
 
     # 執行策略
     if strategy == "all":
