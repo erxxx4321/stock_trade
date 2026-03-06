@@ -112,11 +112,6 @@ def check_current_signal(stats, strategy_name):
     print(f"\n數據截點: {last_date}")
     print(f"使用參數: {strategy_instance._params}")
 
-    # 這裡的邏輯需要對應你在 helper.py 裡的定義
-    # 範例：假設你的策略有 self.k, self.d 或 self.ma1, self.ma2
-
-    signal = "💡 觀望 (HOLD / WAIT)"
-
     # 邏輯判斷示範 (請根據你 helper.py 實際指標名稱修改)
     try:
         # 檢查是否有未平倉部位
