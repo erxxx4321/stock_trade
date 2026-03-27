@@ -19,7 +19,7 @@ with st.sidebar:
     st.header("參數設定")
     
     # 股票代號輸入
-    ticker = st.text_input("股票代號", value="2330").strip()
+    ticker = st.text_input("股票代號", value="").strip()
     
     # 日期範圍選擇
     end_date = datetime.date.today()

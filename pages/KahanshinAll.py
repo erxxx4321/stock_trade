@@ -8,17 +8,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-st.set_page_config(page_title="相場流專業篩選器", layout="wide")
+st.set_page_config(page_title="KahanshinAll", layout="wide")
 
 
 # --- FinMind API 基礎函數 ---
 @st.cache_data(ttl=3600)
-def get_full_stock_list(token):
+def get_full_stock_list():
     """獲取完整的股票清單包含產業資訊"""
     url = "https://api.finmindtrade.com/api/v4/data"
     params = {"dataset": "TaiwanStockInfo"}
-    if token:
-        params["token"] = token
     resp = requests.get(url, params=params)
     df = pd.DataFrame(resp.json()["data"])
     # 只取普通股 (長度為 4 的數字代碼)
@@ -100,11 +98,9 @@ def fetch_and_analyze(stock_id, stock_name, start_date, min_vol, price_range):
 
 with st.sidebar:
     st.header("⚙️ 第一層篩選設定")
-    # api_token = st.text_input("FinMind Token", type="password")
 
     try:
         base_list = get_full_stock_list()
-        # base_list = get_full_stock_list(api_token)
         all_industries = sorted(base_list["industry_category"].unique())
     except:
         st.error("無法取得清單，請檢查 Token")
