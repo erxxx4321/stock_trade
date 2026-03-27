@@ -78,6 +78,11 @@ def run_strategy(df, strategy_name):
             "optimize": False,
             "params": {},
         },
+        "BOX_RANGE": {
+            "class": helper.BOX_RANGE,
+            "optimize": False,
+            "params": {},
+        },
     }
 
     if strategy_name not in strategy_config:
@@ -185,7 +190,6 @@ def main():
     parser = argparse.ArgumentParser(description="股票策略回測 CLI 工具")
     parser.add_argument("ticker", type=str, help="股票代號，例如：2317")
     parser.add_argument(
-        "-m",
         "--market",
         type=str,
         choices=["tw", "us"],
@@ -194,6 +198,9 @@ def main():
     )
     parser.add_argument(
         "-y", "--years", type=int, default=5, help="回測年數（預設 2 年）"
+    )
+    parser.add_argument(
+        "-m", "--months", type=int, default=0, help="回測月數（預設 0 月）"
     )
     parser.add_argument(
         "-s",
@@ -206,11 +213,14 @@ def main():
     args = parser.parse_args()
     ticker = args.ticker
     years = args.years
+    months = args.months
     strategy = args.strategy
 
     # 設定日期範圍
     today = datetime.today()
-    start_date = (today - relativedelta(years=years)).strftime("%Y-%m-%d")
+    start_date = (today - relativedelta(years=years, months=months)).strftime(
+        "%Y-%m-%d"
+    )
     end_date = today.strftime("%Y-%m-%d")
 
     # 下載資料
@@ -218,7 +228,13 @@ def main():
 
     # 執行策略
     if strategy == "all":
-        strategies = ["EMA_KD", "EMA_VWAP_KD", "SmaCross", "SMA_KD", "BOLL_KD30"]
+        strategies = [
+            "EMA_KD",
+            "EMA_VWAP_KD",
+            "SmaCross",
+            "SMA_KD",
+            "BOLL_KD30, BOX_RANGE",
+        ]
         results = {}
 
         for s in strategies:

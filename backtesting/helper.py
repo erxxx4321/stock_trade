@@ -189,3 +189,32 @@ class EMA_VWAP_KD(Strategy):
         elif (self.k[-1] > self.kd) and (self.d[-1] > self.kd):
             if self.position and self.position.pl > 0.0:
                 self.position.close()
+
+
+class BOX_RANGE(Strategy):
+    n_box = 10  # 縮短觀察期，對短期波動更敏感
+    buffer = 0.01  # 增加緩衝區到
+    rsi_window = 14
+
+    def init(self):
+        # 縮短箱型週期
+        self.box_top = self.I(
+            lambda x: pd.Series(x).rolling(self.n_box).max().shift(1), self.data.High
+        )
+        self.box_bottom = self.I(
+            lambda x: pd.Series(x).rolling(self.n_box).min().shift(1), self.data.Low
+        )
+
+    def next(self):
+        price = self.data.Close[-1]
+
+        # --- 買進邏輯：觸及箱底 OR RSI 低位回升 ---
+        if not self.position:
+            # 只要價格靠近箱底，或是 RSI < 40 (超賣區)，就進場
+            if price <= self.box_bottom[-1] * (1 + self.buffer):
+                self.buy()
+
+        # --- 賣出邏輯：分批獲利 OR 觸及箱頂 ---
+        elif self.position:
+            if price >= self.box_top[-1] * (1 - self.buffer):
+                self.position.close()
