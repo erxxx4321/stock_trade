@@ -77,24 +77,30 @@ def compute_signals(df: pd.DataFrame, display_start_date: str) -> pd.DataFrame:
         curr = df.iloc[i]
         prev = df.iloc[i-1]
         
+        # 1. 取得 K 棒實體資訊
+        o, c = curr["Open"], curr["Close"]
+        body_top, body_bottom = max(o, c), min(o, c)
+        body_center = (o + c) / 2  # 實體中心點
+
         # 判定條件定義
         is_bullish_alignment = (curr["MA5"] > curr["MA20"] > curr["MA50"])
         is_bearish_alignment = (curr["MA50"] > curr["MA20"] > curr["MA5"])
         
-        # 1. 下半身：K棒突破5MA + 多頭排列 + 收盤價在MA之上 + 突破第一天
+        # 1. 下半身：收紅 K 且實體中心點 > MA5 + 收盤價在MA之上 + 突破第一天
         is_kahanshin = (
+            c > o and
+            body_center > curr["MA5"] and
             curr["Close"] > curr["MA5"] and 
-            prev["Close"] <= prev["MA5"] and 
-            is_bullish_alignment and
-            curr["Close"] > curr["MA20"] # 股價在均線之上
+            prev["Close"] <= prev["MA5"] and
+            curr["Close"] > curr["MA20"]
         )
         
-        # 2. 逆下半身：K棒跌破5MA + 空頭排列 + 收盤價在MA之下 + 跌破第一天
+        # 2. 逆下半身：收黑 K 且實體中心點 < MA5 + 跌破第一天
         is_inverse = (
+            c < o and
+            body_center < curr["MA5"] and
             curr["Close"] < curr["MA5"] and
             prev["Close"] >= prev["MA5"]
-            # is_bearish_alignment and
-            # curr["Close"] < curr["MA20"]
         )
 
         if is_kahanshin:
