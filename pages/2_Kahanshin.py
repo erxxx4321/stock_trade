@@ -27,19 +27,20 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.set_page_config(
-    layout="wide"
-)
+st.set_page_config(layout="wide")
 
 # ──────────────────────────────────────────────
 # 核心函式
 # ──────────────────────────────────────────────
 
+
 @st.cache_data(ttl=300)
 def fetch_stock_data(stock_id: str, start_date: str) -> pd.DataFrame:
     # 為了計算 MA50，我們需要比顯示範圍更早的資料 (多抓60天)
-    buffer_start = (datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=90)).strftime("%Y-%m-%d")
-    
+    buffer_start = (
+        datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=90)
+    ).strftime("%Y-%m-%d")
+
     url = "https://api.finmindtrade.com/api/v4/data"
     params = {
         "dataset": "TaiwanStockPrice",
@@ -55,53 +56,59 @@ def fetch_stock_data(stock_id: str, start_date: str) -> pd.DataFrame:
     df = pd.DataFrame(data["data"])
     df["date"] = pd.to_datetime(df["date"])
     df = df.sort_values("date").reset_index(drop=True)
-    rename_map = {"open": "Open", "max": "High", "min": "Low", "close": "Close", "Trading_Volume": "Volume"}
+    rename_map = {
+        "open": "Open",
+        "max": "High",
+        "min": "Low",
+        "close": "Close",
+        "Trading_Volume": "Volume",
+    }
     df = df.rename(columns=rename_map)
     return df
 
+
 def compute_signals(df: pd.DataFrame, display_start_date: str) -> pd.DataFrame:
     df = df.copy()
-    
+
     # 計算均線
     df["MA5"] = df["Close"].rolling(window=5).mean()
     df["MA20"] = df["Close"].rolling(window=20).mean()
     df["MA50"] = df["Close"].rolling(window=50).mean()
 
     signals = []
-    
+
     for i in range(len(df)):
-        if i < 50: # 確保 MA50 已經算出來
+        if i < 50:  # 確保 MA50 已經算出來
             signals.append("無資料")
             continue
 
         curr = df.iloc[i]
-        prev = df.iloc[i-1]
-        
+        prev = df.iloc[i - 1]
+
         # 1. 取得 K 棒實體資訊
         o, c = curr["Open"], curr["Close"]
         body_top, body_bottom = max(o, c), min(o, c)
         body_center = (o + c) / 2  # 實體中心點
 
-        # 判定條件定義
-        is_bullish_alignment = (curr["MA5"] > curr["MA20"] > curr["MA50"])
-        is_bearish_alignment = (curr["MA50"] > curr["MA20"] > curr["MA5"])
-        
-        # 1. 下半身：收紅 K 且實體中心點 > MA5 + 收盤價在MA之上 + 突破第一天
+        # --- 下半身定義：紅K 且 實體中心在 5MA 之上 ---
+        def is_k_logic(row):
+            return (row["Close"] > row["Open"]) and (
+                (row["Open"] + row["Close"]) / 2 > row["MA5"]
+            )
+
+        # --- 逆下半身定義：黑K 且 實體中心在 5MA 之下 ---
+        def is_i_logic(row):
+            return (row["Close"] < row["Open"]) and (
+                (row["Open"] + row["Close"]) / 2 < row["MA5"]
+            )
+
+        # 下半身：今日是、昨日不是，且今日在 20MA 之上
         is_kahanshin = (
-            c > o and
-            body_center > curr["MA5"] and
-            curr["Close"] > curr["MA5"] and 
-            prev["Close"] <= prev["MA5"] and
-            curr["Close"] > curr["MA20"]
+            is_k_logic(curr) and not is_k_logic(prev) and curr["Close"] > curr["MA20"]
         )
-        
-        # 2. 逆下半身：收黑 K 且實體中心點 < MA5 + 跌破第一天
-        is_inverse = (
-            c < o and
-            body_center < curr["MA5"] and
-            curr["Close"] < curr["MA5"] and
-            prev["Close"] >= prev["MA5"]
-        )
+
+        # 逆下半身：今日是、昨日不是
+        is_inverse = is_i_logic(curr) and not is_i_logic(prev)
 
         if is_kahanshin:
             signals.append("下半身")
@@ -111,50 +118,80 @@ def compute_signals(df: pd.DataFrame, display_start_date: str) -> pd.DataFrame:
             signals.append("無訊號")
 
     df["Signal"] = signals
-    
+
     # 只回傳使用者要求的日期範圍
     df = df[df["date"] >= pd.to_datetime(display_start_date)].reset_index(drop=True)
     return df
 
+
 def build_candlestick_chart(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
-    
+
     # K線圖
-    fig.add_trace(go.Candlestick(
-        x=df["date"], open=df["Open"], high=df["High"], low=df["Low"], close=df["Close"],
-        name="K線", increasing_line_color="#ff4d6d", decreasing_line_color="#52b788"
-    ))
-    
+    fig.add_trace(
+        go.Candlestick(
+            x=df["date"],
+            open=df["Open"],
+            high=df["High"],
+            low=df["Low"],
+            close=df["Close"],
+            name="K線",
+            increasing_line_color="#ff4d6d",
+            decreasing_line_color="#52b788",
+        )
+    )
+
     # 均線群
     colors = {"MA5": "#f4d03f", "MA20": "#3498db", "MA50": "#9b59b6"}
     for ma in ["MA5", "MA20", "MA50"]:
-        fig.add_trace(go.Scatter(
-            x=df["date"], y=df[ma], mode="lines", name=ma,
-            line=dict(color=colors[ma], width=1.5)
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=df["date"],
+                y=df[ma],
+                mode="lines",
+                name=ma,
+                line=dict(color=colors[ma], width=1.5),
+            )
+        )
 
     # 標註訊號
     buy_df = df[df["Signal"] == "下半身"]
-    fig.add_trace(go.Scatter(
-        x=buy_df["date"], y=buy_df["Low"] * 0.98, mode="markers+text",
-        name="下半身(買)", text=["買"]*len(buy_df), textposition="bottom center",
-        marker=dict(symbol="triangle-up", size=15, color="#ff4d6d")
-    ))
-    
+    fig.add_trace(
+        go.Scatter(
+            x=buy_df["date"],
+            y=buy_df["Low"] * 0.98,
+            mode="markers+text",
+            name="下半身(買)",
+            text=["買"] * len(buy_df),
+            textposition="bottom center",
+            marker=dict(symbol="triangle-up", size=15, color="#ff4d6d"),
+        )
+    )
+
     sell_df = df[df["Signal"] == "逆下半身"]
-    fig.add_trace(go.Scatter(
-        x=sell_df["date"], y=sell_df["High"] * 1.02, mode="markers+text",
-        name="逆下半身(賣)", text=["賣"]*len(sell_df), textposition="top center",
-        marker=dict(symbol="triangle-down", size=15, color="#52b788")
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=sell_df["date"],
+            y=sell_df["High"] * 1.02,
+            mode="markers+text",
+            name="逆下半身(賣)",
+            text=["賣"] * len(sell_df),
+            textposition="top center",
+            marker=dict(symbol="triangle-down", size=15, color="#52b788"),
+        )
+    )
 
     fig.update_layout(
-        template="plotly_dark", paper_bgcolor="#0d0d1a", plot_bgcolor="#0d0d1a",
-        xaxis_rangeslider_visible=False, height=600,
+        template="plotly_dark",
+        paper_bgcolor="#0d0d1a",
+        plot_bgcolor="#0d0d1a",
+        xaxis_rangeslider_visible=False,
+        height=600,
         margin=dict(l=10, r=10, t=30, b=10),
-        legend=dict(orientation="h", y=1.05, font=dict(color="#f0f0f0"))
+        legend=dict(orientation="h", y=1.05, font=dict(color="#f0f0f0")),
     )
     return fig
+
 
 # ──────────────────────────────────────────────
 # 主要輸入區
@@ -169,10 +206,12 @@ with st.container():
             "30天 (約1個月)": 30,
             "60天 (約2個月)": 60,
             "90天 (約1季)": 90,
-            "180天 (半年)": 180
+            "180天 (半年)": 180,
         }
-        
-        selected_label = st.selectbox("顯示範圍", options=list(options_map.keys()), index=0)
+
+        selected_label = st.selectbox(
+            "顯示範圍", options=list(options_map.keys()), index=0
+        )
         days_back = options_map[selected_label]
     with search_col3:
         st.write("##")
@@ -196,37 +235,72 @@ if analyze_btn:
                     st.warning("計算範圍內資料不足。")
                 else:
                     latest = df.iloc[-1]
-                    
+
                     # 頂部狀態顯示
                     sig = latest["Signal"]
                     if sig == "下半身":
-                        box_cls, title, desc = "signal-buy", "🟢 觸發「下半身」買入訊號", "今日首度突破 5MA 且均線呈多頭排列。"
+                        box_cls, title, desc = (
+                            "signal-buy",
+                            "🟢 觸發「下半身」買入訊號",
+                            "今日首度突破 5MA 且均線呈多頭排列。",
+                        )
                     elif sig == "逆下半身":
-                        box_cls, title, desc = "signal-sell", "🔴 觸發「逆下半身」賣出訊號", "今日首度跌破 5MA 且均線呈空頭排列。"
+                        box_cls, title, desc = (
+                            "signal-sell",
+                            "🔴 觸發「逆下半身」賣出訊號",
+                            "今日首度跌破 5MA 且均線呈空頭排列。",
+                        )
                     else:
-                        box_cls, title, desc = "signal-none", "⚪ 目前無首日突破訊號", "股價處於趨勢中或整理區間。"
+                        box_cls, title, desc = (
+                            "signal-none",
+                            "⚪ 目前無首日突破訊號",
+                            "股價處於趨勢中或整理區間。",
+                        )
 
-                    st.markdown(f'<div class="signal-box {box_cls}"><div class="signal-title">{title}</div><div class="signal-desc">{desc}</div></div>', unsafe_allow_html=True)
+                    st.markdown(
+                        f'<div class="signal-box {box_cls}"><div class="signal-title">{title}</div><div class="signal-desc">{desc}</div></div>',
+                        unsafe_allow_html=True,
+                    )
 
                     # 數據卡片
                     c1, c2, c3, c4 = st.columns(4)
+
                     def card(col, label, value, color="#f0f0f0"):
-                        col.markdown(f'<div class="info-card"><div class="info-label">{label}</div><div class="info-value" style="color:{color}">{value}</div></div>', unsafe_allow_html=True)
-                    
+                        col.markdown(
+                            f'<div class="info-card"><div class="info-label">{label}</div><div class="info-value" style="color:{color}">{value}</div></div>',
+                            unsafe_allow_html=True,
+                        )
+
                     card(c1, "最新收盤", f"${latest['Close']:.2f}")
-                    card(c2, "MA5/20/50", f"{latest['MA5']:.1f} / {latest['MA20']:.1f} / {latest['MA50']:.1f}")
-                    
+                    card(
+                        c2,
+                        "MA5/20/50",
+                        f"{latest['MA5']:.1f} / {latest['MA20']:.1f} / {latest['MA50']:.1f}",
+                    )
+
                     # 排列檢查
                     is_bull = latest["MA5"] > latest["MA20"] > latest["MA50"]
                     is_bear = latest["MA50"] > latest["MA20"] > latest["MA5"]
-                    trend_text = "多頭排列" if is_bull else ("空頭排列" if is_bear else "糾結/無趨勢")
-                    trend_color = "#ff4d6d" if is_bull else ("#52b788" if is_bear else "#aaa")
-                    
+                    trend_text = (
+                        "多頭排列"
+                        if is_bull
+                        else ("空頭排列" if is_bear else "糾結/無趨勢")
+                    )
+                    trend_color = (
+                        "#ff4d6d" if is_bull else ("#52b788" if is_bear else "#aaa")
+                    )
+
                     card(c3, "目前趨勢", trend_text, trend_color)
-                    card(c4, "分析區間訊號數", f"買:{ (df['Signal']=='下半身').sum() } / 賣:{ (df['Signal']=='逆下半身').sum() }")
+                    card(
+                        c4,
+                        "分析區間訊號數",
+                        f"買:{ (df['Signal']=='下半身').sum() } / 賣:{ (df['Signal']=='逆下半身').sum() }",
+                    )
 
                     # 圖表
-                    st.plotly_chart(build_candlestick_chart(df), use_container_width=True)
-                    
+                    st.plotly_chart(
+                        build_candlestick_chart(df), use_container_width=True
+                    )
+
         except Exception as e:
             st.error(f"執行時發生錯誤: {e}")
