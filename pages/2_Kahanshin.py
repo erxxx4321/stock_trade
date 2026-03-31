@@ -85,30 +85,19 @@ def compute_signals(df: pd.DataFrame, display_start_date: str) -> pd.DataFrame:
         curr = df.iloc[i]
         prev = df.iloc[i - 1]
 
-        # 1. 取得 K 棒實體資訊
-        o, c = curr["Open"], curr["Close"]
-        body_top, body_bottom = max(o, c), min(o, c)
-        body_center = (o + c) / 2  # 實體中心點
+        c, o, ma5 = curr["Close"], curr["Open"], curr["MA5"]
+        body_center = (o + c) / 2
 
-        # --- 下半身定義：紅K 且 實體中心在 5MA 之上 ---
-        def is_k_logic(row):
-            return (row["Close"] > row["Open"]) and (
-                (row["Open"] + row["Close"]) / 2 > row["MA5"]
-            )
+        # 條件 1: 昨日收盤在線下 (最標準的突破前)
+        # 條件 2: 昨日是黑K且昨日黑 K 實體大於過去 5 天平均實體的 1.2 倍
+        prev_body = abs(prev["Open"] - prev["Close"])
+        avg_body = df["Close"].diff().abs().rolling(5).mean().iloc[i-1]
+        yesterday_was_weak = (prev["Close"] <= prev["MA5"]) or (prev["Close"] < prev["Open"] and prev_body > avg_body * 1.2)
 
-        # --- 逆下半身定義：黑K 且 實體中心在 5MA 之下 ---
-        def is_i_logic(row):
-            return (row["Close"] < row["Open"]) and (
-                (row["Open"] + row["Close"]) / 2 < row["MA5"]
-            )
+        is_kahanshin = (c > o) and (body_center > ma5) and yesterday_was_weak and c > curr["MA20"]
 
-        # 下半身：今日是、昨日不是，且今日在 20MA 之上
-        is_kahanshin = (
-            is_k_logic(curr) and not is_k_logic(prev) and curr["Close"] > curr["MA20"]
-        )
-
-        # 逆下半身：今日是、昨日不是
-        is_inverse = is_i_logic(curr) and not is_i_logic(prev)
+        yesterday_was_strong = (prev["Close"] >= prev["MA5"]) and (prev["Close"] > prev["Open"])
+        is_inverse = yesterday_was_strong and c < o and (body_center < ma5)
 
         if is_kahanshin:
             signals.append("下半身")
