@@ -16,8 +16,8 @@ st.markdown(
     html, body, [class*="css"] { font-family: 'Noto Sans TC', sans-serif; }
     .main-title { font-size: 2.2rem; font-weight: 900; background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460); color: #e94560; padding: 1.2rem 1.8rem; border-radius: 12px; margin-bottom: 0.5rem; letter-spacing: 2px; text-align: center; }
     .signal-box { border-radius: 12px !important; padding: 1.5rem 2rem !important; text-align: center !important; margin: 0.5rem 0 !important; color: #ffffff !important; }
-    .signal-buy  { background: linear-gradient(135deg,#1b4332,#2d6a4f) !important; border: 2px solid #52b788 !important; }
-    .signal-sell { background: linear-gradient(135deg,#641220,#a4133c) !important; border: 2px solid #ff4d6d !important; }
+    .signal-sell  { background: linear-gradient(135deg,#1b4332,#2d6a4f) !important; border: 2px solid #52b788 !important; }
+    .signal-buy { background: linear-gradient(135deg,#641220,#a4133c) !important; border: 2px solid #ff4d6d !important; }
     .signal-none { background: linear-gradient(135deg,#212529,#343a40) !important; border: 2px solid #6c757d !important; }
     .info-card { background: #1e1e2e; border: 1px solid #333; border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 0.5rem; }
     .info-label { font-size: 0.78rem; color: #aaa; margin-bottom: 2px; }
@@ -73,12 +73,12 @@ def compute_signals(df: pd.DataFrame, display_start_date: str) -> pd.DataFrame:
     # 計算均線
     df["MA5"] = df["Close"].rolling(window=5).mean()
     df["MA20"] = df["Close"].rolling(window=20).mean()
-    df["MA50"] = df["Close"].rolling(window=50).mean()
+    df["MA60"] = df["Close"].rolling(window=60).mean()
 
     signals = []
 
     for i in range(len(df)):
-        if i < 50:  # 確保 MA50 已經算出來
+        if i < 60:  # 確保 MA60 已經算出來
             signals.append("無資料")
             continue
 
@@ -92,9 +92,9 @@ def compute_signals(df: pd.DataFrame, display_start_date: str) -> pd.DataFrame:
         # 條件 2: 昨日是黑K且昨日黑 K 實體大於過去 5 天平均實體的 1.2 倍
         prev_body = abs(prev["Open"] - prev["Close"])
         avg_body = df["Close"].diff().abs().rolling(5).mean().iloc[i-1]
-        yesterday_was_weak = (prev["Close"] <= prev["MA5"]) or (prev["Close"] < prev["Open"] and prev_body > avg_body * 1.2)
+        yesterday_was_weak = (prev["Close"] <= prev["MA5"]) and (prev["Close"] < prev["Open"])
 
-        is_kahanshin = (c > o) and (body_center > ma5) and yesterday_was_weak and c > curr["MA20"]
+        is_kahanshin = (c > o) and (body_center > ma5) and yesterday_was_weak
 
         yesterday_was_strong = (prev["Close"] >= prev["MA5"]) and (prev["Close"] > prev["Open"])
         is_inverse = yesterday_was_strong and c < o and (body_center < ma5)
@@ -131,8 +131,8 @@ def build_candlestick_chart(df: pd.DataFrame) -> go.Figure:
     )
 
     # 均線群
-    colors = {"MA5": "#f4d03f", "MA20": "#3498db", "MA50": "#9b59b6"}
-    for ma in ["MA5", "MA20", "MA50"]:
+    colors = {"MA5": "#f4d03f", "MA20": "#3498db", "MA60": "#9b59b6"}
+    for ma in ["MA5", "MA20", "MA60"]:
         fig.add_trace(
             go.Scatter(
                 x=df["date"],
@@ -230,13 +230,13 @@ if analyze_btn:
                     if sig == "下半身":
                         box_cls, title, desc = (
                             "signal-buy",
-                            "🟢 觸發「下半身」買入訊號",
+                            "🔴 觸發「下半身」買入訊號",
                             "今日首度突破 5MA 且均線呈多頭排列。",
                         )
                     elif sig == "逆下半身":
                         box_cls, title, desc = (
                             "signal-sell",
-                            "🔴 觸發「逆下半身」賣出訊號",
+                            "🟢 觸發「逆下半身」賣出訊號",
                             "今日首度跌破 5MA 且均線呈空頭排列。",
                         )
                     else:
@@ -263,13 +263,13 @@ if analyze_btn:
                     card(c1, "最新收盤", f"${latest['Close']:.2f}")
                     card(
                         c2,
-                        "MA5/20/50",
-                        f"{latest['MA5']:.1f} / {latest['MA20']:.1f} / {latest['MA50']:.1f}",
+                        "MA5/20/60",
+                        f"{latest['MA5']:.1f} / {latest['MA20']:.1f} / {latest['MA60']:.1f}",
                     )
 
                     # 排列檢查
-                    is_bull = latest["MA5"] > latest["MA20"] > latest["MA50"]
-                    is_bear = latest["MA50"] > latest["MA20"] > latest["MA5"]
+                    is_bull = latest["MA5"] > latest["MA20"] > latest["MA60"]
+                    is_bear = latest["MA60"] > latest["MA20"] > latest["MA5"]
                     trend_text = (
                         "多頭排列"
                         if is_bull
