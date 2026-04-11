@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from plotly.subplots import make_subplots
 import os
 from dotenv import load_dotenv
 
@@ -74,6 +75,7 @@ def compute_signals(df: pd.DataFrame, display_start_date: str) -> pd.DataFrame:
     df["MA5"] = df["Close"].rolling(window=5).mean()
     df["MA20"] = df["Close"].rolling(window=20).mean()
     df["MA60"] = df["Close"].rolling(window=60).mean()
+    df["VolMA20"] = df["Volume"].rolling(window=20).mean()
 
     signals = []
 
@@ -86,18 +88,18 @@ def compute_signals(df: pd.DataFrame, display_start_date: str) -> pd.DataFrame:
         prev = df.iloc[i - 1]
 
         c, o, ma5 = curr["Close"], curr["Open"], curr["MA5"]
+        v, v_ma20 = curr["Volume"], curr["VolMA20"]
         body_center = (o + c) / 2
 
-        # 條件 1: 昨日收盤在線下 (最標準的突破前)
-        # 條件 2: 昨日是黑K且昨日黑 K 實體大於過去 5 天平均實體的 1.2 倍
-        prev_body = abs(prev["Open"] - prev["Close"])
-        avg_body = df["Close"].diff().abs().rolling(5).mean().iloc[i-1]
-        yesterday_was_weak = (prev["Close"] <= prev["MA5"]) and (prev["Close"] < prev["Open"])
+        # 下半身: 昨日收盤價在5MA之下 + 今日紅K且實體一半在5MA之上
+        yesterday_kahanshin = prev["Close"] <= prev["MA5"]
+        is_kahanshin = yesterday_kahanshin and (c > o) and (body_center > ma5)
 
-        is_kahanshin = (c > o) and (body_center > ma5) and yesterday_was_weak
-
-        yesterday_was_strong = (prev["Close"] >= prev["MA5"]) and (prev["Close"] > prev["Open"])
-        is_inverse = yesterday_was_strong and c < o and (body_center < ma5)
+        # 逆下半身: 昨日收紅Ｋ且收盤價在5MA之上 + 今日收黑K且實體一半在5MA之下
+        yesterday_inverse = (prev["Close"] >= prev["MA5"]) and (
+            prev["Close"] > prev["Open"]
+        )
+        is_inverse = yesterday_inverse and c < o and (body_center < ma5)
 
         if is_kahanshin:
             signals.append("下半身")
@@ -114,9 +116,12 @@ def compute_signals(df: pd.DataFrame, display_start_date: str) -> pd.DataFrame:
 
 
 def build_candlestick_chart(df: pd.DataFrame) -> go.Figure:
-    fig = go.Figure()
+    # 建立雙列圖表：Row 1 是 K 線 (佔 80%)，Row 2 是成交量 (佔 20%)
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.8, 0.2]
+    )
 
-    # K線圖
+    # 1. K 線圖 (Row 1)
     fig.add_trace(
         go.Candlestick(
             x=df["date"],
@@ -127,34 +132,39 @@ def build_candlestick_chart(df: pd.DataFrame) -> go.Figure:
             name="K線",
             increasing_line_color="#ff4d6d",
             decreasing_line_color="#52b788",
-        )
+        ),
+        row=1,
+        col=1,
     )
 
-    # 均線群
-    colors = {"MA5": "#f4d03f", "MA20": "#3498db", "MA60": "#9b59b6"}
+    # 價格均線 (Row 1)
+    ma_colors = {"MA5": "#f4d03f", "MA20": "#3498db", "MA60": "#9b59b6"}
     for ma in ["MA5", "MA20", "MA60"]:
         fig.add_trace(
             go.Scatter(
                 x=df["date"],
                 y=df[ma],
-                mode="lines",
                 name=ma,
-                line=dict(color=colors[ma], width=1.5),
-            )
+                line=dict(color=ma_colors[ma], width=1.5),
+            ),
+            row=1,
+            col=1,
         )
 
-    # 標註訊號
+    # 標註買賣訊號 (Row 1)
     buy_df = df[df["Signal"] == "下半身"]
     fig.add_trace(
         go.Scatter(
             x=buy_df["date"],
             y=buy_df["Low"] * 0.98,
             mode="markers+text",
-            name="下半身(買)",
+            name="買入訊號",
             text=["買"] * len(buy_df),
             textposition="bottom center",
-            marker=dict(symbol="triangle-up", size=15, color="#ff4d6d"),
-        )
+            marker=dict(symbol="triangle-up", size=12, color="#ff4d6d"),
+        ),
+        row=1,
+        col=1,
     )
 
     sell_df = df[df["Signal"] == "逆下半身"]
@@ -163,22 +173,57 @@ def build_candlestick_chart(df: pd.DataFrame) -> go.Figure:
             x=sell_df["date"],
             y=sell_df["High"] * 1.02,
             mode="markers+text",
-            name="逆下半身(賣)",
+            name="賣出訊號",
             text=["賣"] * len(sell_df),
             textposition="top center",
-            marker=dict(symbol="triangle-down", size=15, color="#52b788"),
-        )
+            marker=dict(symbol="triangle-down", size=12, color="#52b788"),
+        ),
+        row=1,
+        col=1,
     )
 
+    # 2. 成交量圖 (Row 2)
+    # 根據漲跌決定成交量柱狀顏色
+    vol_colors = [
+        "#ff4d6d" if c >= o else "#52b788" for c, o in zip(df["Close"], df["Open"])
+    ]
+    fig.add_trace(
+        go.Bar(
+            x=df["date"],
+            y=df["Volume"],
+            name="成交量",
+            marker_color=vol_colors,
+            opacity=0.7,
+        ),
+        row=2,
+        col=1,
+    )
+
+    # 成交量 20MA (Row 2)
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"],
+            y=df["VolMA20"],
+            name="Vol MA20",
+            line=dict(color="#00d4ff", width=2),
+        ),
+        row=2,
+        col=1,
+    )
+
+    # 版面設定
     fig.update_layout(
         template="plotly_dark",
         paper_bgcolor="#0d0d1a",
         plot_bgcolor="#0d0d1a",
         xaxis_rangeslider_visible=False,
-        height=600,
+        height=550,
         margin=dict(l=10, r=10, t=30, b=10),
         legend=dict(orientation="h", y=1.05, font=dict(color="#f0f0f0")),
     )
+    fig.update_yaxes(title_text="價格", row=1, col=1)
+    fig.update_yaxes(title_text="成交量", row=2, col=1)
+
     return fig
 
 
@@ -203,7 +248,6 @@ with st.container():
         )
         days_back = options_map[selected_label]
     with search_col3:
-        st.write("##")
         analyze_btn = st.button("開始分析", use_container_width=True, type="primary")
 
 # ──────────────────────────────────────────────
@@ -225,66 +269,53 @@ if analyze_btn:
                 else:
                     latest = df.iloc[-1]
 
-                    # 頂部狀態顯示
+                    # 1. 先處理訊號文字與趨勢文字
                     sig = latest["Signal"]
                     if sig == "下半身":
-                        box_cls, title, desc = (
-                            "signal-buy",
-                            "🔴 觸發「下半身」買入訊號",
-                            "今日首度突破 5MA 且均線呈多頭排列。",
-                        )
+                        status_msg, status_color = "🔴 下半身(買)", "#ff4d6d"
                     elif sig == "逆下半身":
-                        box_cls, title, desc = (
-                            "signal-sell",
-                            "🟢 觸發「逆下半身」賣出訊號",
-                            "今日首度跌破 5MA 且均線呈空頭排列。",
-                        )
+                        status_msg, status_color = "🟢 逆下半身(賣)", "#52b788"
                     else:
-                        box_cls, title, desc = (
-                            "signal-none",
-                            "⚪ 目前無首日突破訊號",
-                            "股價處於趨勢中或整理區間。",
-                        )
+                        status_msg, status_color = "⚪ 目前無訊號", "#aaa"
 
-                    st.markdown(
-                        f'<div class="signal-box {box_cls}"><div class="signal-title">{title}</div><div class="signal-desc">{desc}</div></div>',
-                        unsafe_allow_html=True,
-                    )
-
-                    # 數據卡片
-                    c1, c2, c3, c4 = st.columns(4)
-
-                    def card(col, label, value, color="#f0f0f0"):
-                        col.markdown(
-                            f'<div class="info-card"><div class="info-label">{label}</div><div class="info-value" style="color:{color}">{value}</div></div>',
-                            unsafe_allow_html=True,
-                        )
-
-                    card(c1, "最新收盤", f"${latest['Close']:.2f}")
-                    card(
-                        c2,
-                        "MA5/20/60",
-                        f"{latest['MA5']:.1f} / {latest['MA20']:.1f} / {latest['MA60']:.1f}",
-                    )
-
-                    # 排列檢查
+                    # 2. 趨勢判斷邏輯
                     is_bull = latest["MA5"] > latest["MA20"] > latest["MA60"]
                     is_bear = latest["MA60"] > latest["MA20"] > latest["MA5"]
                     trend_text = (
                         "多頭排列"
                         if is_bull
-                        else ("空頭排列" if is_bear else "糾結/無趨勢")
-                    )
-                    trend_color = (
-                        "#ff4d6d" if is_bull else ("#52b788" if is_bear else "#aaa")
+                        else ("空頭排列" if is_bear else "橫盤/糾結")
                     )
 
-                    card(c3, "目前趨勢", trend_text, trend_color)
-                    card(
-                        c4,
-                        "分析區間訊號數",
-                        f"買:{ (df['Signal']=='下半身').sum() } / 賣:{ (df['Signal']=='逆下半身').sum() }",
+                    c1, c2, c3, c4, c5 = st.columns([1.2, 1, 1.5, 1, 1.2])
+
+                    def mini_info(col, label, value, val_color="black"):
+                        col.markdown(
+                            f"""
+                            <div style="line-height: 1.2;">
+                                <p style="margin:0; font-size: 0.8rem; color: black; margin-bottom: 10px">{label}</p>
+                                <p style="margin:0; font-size: 1rem; font-weight: 700; color: {val_color};">{value}</p>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+
+                    # 3. 填入數據
+                    mini_info(c1, "當前訊號", status_msg, status_color)
+                    mini_info(c2, "最新收盤", f"${latest['Close']:.2f}")
+                    mini_info(
+                        c3,
+                        "MA 5 / 20 / 60",
+                        f"{latest['MA5']:.1f} / {latest['MA20']:.1f} / {latest['MA60']:.1f}",
                     )
+                    mini_info(c4, "趨勢狀態", trend_text)
+                    mini_info(
+                        c5,
+                        "區間訊號(買/賣)",
+                        f"{ (df['Signal']=='下半身').sum() } / { (df['Signal']=='逆下半身').sum() }",
+                    )
+
+                    st.divider()
 
                     # 圖表
                     st.plotly_chart(
