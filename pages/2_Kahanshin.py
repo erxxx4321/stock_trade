@@ -248,7 +248,7 @@ with st.container():
         )
         days_back = options_map[selected_label]
     with search_col3:
-        analyze_btn = st.button("開始分析", use_container_width=True, type="primary")
+        analyze_btn = st.button("開始分析", type="primary")
 
 # ──────────────────────────────────────────────
 # 執行分析
@@ -318,9 +318,7 @@ if analyze_btn:
                     st.divider()
 
                     # 圖表
-                    st.plotly_chart(
-                        build_candlestick_chart(df), use_container_width=True
-                    )
+                    st.plotly_chart(build_candlestick_chart(df))
 
         except Exception as e:
             st.error(f"執行時發生錯誤: {e}")
