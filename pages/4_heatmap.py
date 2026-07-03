@@ -42,7 +42,8 @@ if submitted:
         df = pd.merge(df, df_investor, on="date", how="left")
         df = df.sort_index(ascending=False)
 
-        matrix = df[
+        # 建立中文欄位名稱對應
+        df_renamed = df[
             [
                 "close",
                 "MarginPurchaseTodayBalance",
@@ -50,7 +51,12 @@ if submitted:
                 "Foreign_Investor",
                 "Investment_Trust",
             ]
-        ].corr()
+        ].copy()
+        df_renamed.columns = ["收盤價", "融資餘額", "融券餘額", "外資買賣超", "投信買賣超"]
+        
+        matrix = df_renamed.corr()
+        matrix.index = ["收盤價", "融資餘額", "融券餘額", "外資買賣超", "投信買賣超"]
+        matrix.columns = ["收盤價", "融資餘額", "融券餘額", "外資買賣超", "投信買賣超"]
         plt.figure(figsize=(6, 4))
         sns.heatmap(matrix, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5)
         plt.title(f"Correlation Heatmap : {ticker}.TW")

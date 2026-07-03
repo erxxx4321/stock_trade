@@ -88,12 +88,20 @@ def compute_signals(df: pd.DataFrame, display_start_date: str) -> pd.DataFrame:
         prev = df.iloc[i - 1]
 
         c, o, ma5 = curr["Close"], curr["Open"], curr["MA5"]
+        ma20, ma60 = curr["MA20"], curr["MA60"]
         v, v_ma20 = curr["Volume"], curr["VolMA20"]
         body_center = (o + c) / 2
 
+        # 區間震盪: 均線未形成明確多/空頭排列
+        is_bull = ma5 > ma20 > ma60
+        is_bear = ma60 > ma20 > ma5
+        is_range = not (is_bull or is_bear)
+
         # 下半身: 昨日收盤價在5MA之下 + 今日紅K且實體一半在5MA之上
         yesterday_kahanshin = prev["Close"] <= prev["MA5"]
-        is_kahanshin = yesterday_kahanshin and (c > o) and (body_center > ma5)
+        is_kahanshin = (
+            (not is_range) and yesterday_kahanshin and (c > o) and (body_center > ma5)
+        )
 
         # 逆下半身: 昨日收紅Ｋ且收盤價在5MA之上 + 今日收黑K且實體一半在5MA之下
         yesterday_inverse = (prev["Close"] >= prev["MA5"]) and (
