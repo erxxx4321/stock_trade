@@ -41,6 +41,23 @@ def VWAP(high, low, close, volume):
     return (typical_price * volume).cumsum() / volume.cumsum()
 
 
+def yearly_seasonality(close, dates):
+    from neuralprophet import NeuralProphet, set_log_level
+
+    set_log_level("ERROR")
+    df = pd.DataFrame({"ds": pd.to_datetime(dates), "y": np.asarray(close, dtype=float)})
+
+    m = NeuralProphet(
+        n_changepoints=0,
+        yearly_seasonality=True,
+        weekly_seasonality=False,
+        daily_seasonality=False,
+    )
+    m.fit(df, epochs=30, batch_size=32, early_stopping=True, progress=None)
+    forecast = m.predict(df, decompose=True)
+    return forecast["season_yearly"].to_numpy()
+
+
 class BuyStrategy(Enum):
     BOLL_KD30 = "布林下軌KD<30"
     BOLL_RSI30 = "布林下軌RSI<30"
@@ -50,14 +67,17 @@ class BuyStrategy(Enum):
 class SmaCross(Strategy):
     n1 = 20
     n2 = 60
+    stop_loss = 0.08
 
     def init(self):
         self.sma1 = self.I(SMA, self.data.Close, self.n1)
         self.sma2 = self.I(SMA, self.data.Close, self.n2)
 
     def next(self):
+        price = self.data.Close[-1]
+
         if crossover(self.sma1, self.sma2):
-            self.buy()
+            self.buy(sl=price * (1 - self.stop_loss))
 
         elif crossover(self.sma2, self.sma1):
             if self.position and self.position.pl > 0.0:
@@ -218,3 +238,45 @@ class BOX_RANGE(Strategy):
         elif self.position:
             if price >= self.box_top[-1] * (1 - self.buffer):
                 self.position.close()
+
+
+class NEURAL_SEASONALITY(Strategy):
+    threshold = 0.0
+    take_profit = 0.2
+
+    def init(self):
+        self.seasonality = self.I(
+            yearly_seasonality, self.data.Close, self.data.index
+        )
+
+    def next(self):
+        prev, curr = self.seasonality[-2], self.seasonality[-1]
+        if np.isnan(prev) or np.isnan(curr):
+            return
+
+        if not self.position and prev <= self.threshold < curr:
+            self.buy()
+        elif self.position and self.position.pl_pct > self.take_profit * 100:
+            self.position.close()
+
+
+class LEFT_SIDE_MA(Strategy):
+    ma_period = 60
+    take_profit = 0.2
+    stop_loss = 0.08
+
+    def init(self):
+        self.ma20 = self.I(SMA, self.data.Close, self.ma_period)
+
+    def next(self):
+        price = self.data.Close[-1]
+        ma20 = self.ma20[-1]
+
+        if np.isnan(ma20):
+            return
+
+        if not self.position and price < ma20:
+            self.buy(
+                sl=price * (1 - self.stop_loss),
+                tp=price * (1 + self.take_profit),
+            )

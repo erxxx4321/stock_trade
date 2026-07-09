@@ -6,3 +6,5 @@ __pycache__/
 lightning_logs/
 
 .env
+credentials.json
+credentials_*.json

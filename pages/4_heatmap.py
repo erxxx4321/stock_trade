@@ -8,6 +8,13 @@ import seaborn as sns
 from FinMind.data import DataLoader
 
 api = DataLoader()
+plt.rcParams["font.sans-serif"] = [
+    "Arial Unicode MS",
+    "Microsoft YaHei",
+    "SimHei",
+    "Noto Sans CJK TC",
+]
+plt.rcParams["axes.unicode_minus"] = False
 
 with st.form(key="form"):
     ticker = st.text_input("請輸入股票代號:", value="")

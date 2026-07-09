@@ -1,6 +1,8 @@
 import argparse
+import sys
 import warnings
 import os
+from itertools import product
 import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -8,10 +10,29 @@ from backtesting import Backtest
 from FinMind.data import DataLoader
 import helper
 import numpy as np
+import gspread
+from google.oauth2.service_account import Credentials
 
-# === 隱藏警告與進度條 ===
+sys.stdout.reconfigure(encoding="utf-8")
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1alMqZ1cRn8onmy16RfB0T4n_PMPpSG6RKvHaD_LDewA"
+GOOGLE_CREDS_PATH = os.path.join(SCRIPT_DIR, "credentials.json")
+GOOGLE_SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
+BACKTEST_SHEET = "Backtest"
+BACKTEST_COLS = ["個股代號", "個股名稱", "策略名稱", "策略條件", "狀態"]
+
+# python backtest.py 2344 --strategy LEFT_SIDE_MA
+
 warnings.filterwarnings("ignore")
 os.environ["BACKTESTING_DISABLE_TQDM"] = "1"
+
+
+def _tuple(v):
+    return v if isinstance(v, (list, tuple)) else (v,)
 
 
 def print_result(stats, strategy_name=None):
@@ -66,7 +87,11 @@ def run_strategy(df, strategy_name):
         "SmaCross": {
             "class": helper.SmaCross,
             "optimize": True,
-            "params": {"n1": [5, 10, 20], "n2": [10, 20, 50, 60, 100, 120]},
+            "params": {
+                "n1": [5, 10, 20],
+                "n2": [10, 20, 50, 60, 100, 120],
+                "stop_loss": [0.05, 0.08, 0.1, 0.15, 0.2],
+            },
         },
         "SMA_KD": {
             "class": helper.SMA_KD,
@@ -83,6 +108,23 @@ def run_strategy(df, strategy_name):
             "optimize": False,
             "params": {},
         },
+        "LEFT_SIDE_MA": {
+            "class": helper.LEFT_SIDE_MA,
+            "optimize": True,
+            "params": {
+                "ma_period": [5, 10, 20, 60, 100, 120],
+                "take_profit": [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 1],
+                "stop_loss": [0.05, 0.08, 0.1, 0.15, 0.2],
+            },
+        },
+        "NEURAL_SEASONALITY": {
+            "class": helper.NEURAL_SEASONALITY,
+            "optimize": True,
+            "sequential": True,  # NeuralProphet 內部使用多執行緒，與 bt.optimize() 的 Pool 併用會卡死
+            "params": {
+                "take_profit": [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 1],
+            },
+        },
     }
 
     if strategy_name not in strategy_config:
@@ -91,9 +133,23 @@ def run_strategy(df, strategy_name):
         )
 
     config = strategy_config[strategy_name]
-    bt = Backtest(df, config["class"], cash=100_000, commission=0.001425)
+    bt = Backtest(
+        df, config["class"], cash=100_000, commission=0.001425, trade_on_close=True
+    )
 
-    if config["optimize"]:
+    if config["optimize"] and config.get("sequential"):
+        param_names = list(config["params"].keys())
+        best_stats = None
+        best_equity = -np.inf
+        for values in product(*(_tuple(v) for v in config["params"].values())):
+            params = dict(zip(param_names, values))
+            candidate_stats = bt.run(**params)
+            equity = candidate_stats["Equity Final [$]"]
+            if equity > best_equity:
+                best_equity = equity
+                best_stats = candidate_stats
+        stats = best_stats
+    elif config["optimize"]:
         stats = bt.optimize(
             maximize="Equity Final [$]",
             **config["params"],
@@ -106,7 +162,94 @@ def run_strategy(df, strategy_name):
     return stats
 
 
-def check_current_signal(stats, strategy_name):
+def get_stock_name(ticker: str) -> str:
+    try:
+        api = DataLoader()
+        info = api.taiwan_stock_info()
+        row = info[info["stock_id"] == ticker]
+        if not row.empty:
+            return str(row.iloc[0]["stock_name"])
+    except Exception as e:
+        print(f"⚠️ 查詢個股名稱失敗: {e}")
+    return ""
+
+
+def get_backtest_worksheet():
+    if not os.path.exists(GOOGLE_CREDS_PATH):
+        raise FileNotFoundError(f"找不到 Google 服務帳戶金鑰：{GOOGLE_CREDS_PATH}")
+
+    creds = Credentials.from_service_account_file(
+        GOOGLE_CREDS_PATH, scopes=GOOGLE_SCOPES
+    )
+    gc = gspread.authorize(creds)
+    spreadsheet = gc.open_by_url(GOOGLE_SHEET_URL)
+
+    try:
+        ws = spreadsheet.worksheet(BACKTEST_SHEET)
+    except gspread.exceptions.WorksheetNotFound:
+        ws = spreadsheet.add_worksheet(title=BACKTEST_SHEET, rows=1000, cols=10)
+        ws.update(range_name="A1", values=[BACKTEST_COLS])
+        ws.format(
+            "A1:E1",
+            {
+                "backgroundColor": {"red": 0.13, "green": 0.24, "blue": 0.45},
+                "textFormat": {
+                    "foregroundColor": {"red": 1, "green": 1, "blue": 1},
+                    "bold": True,
+                },
+                "verticalAlignment": "MIDDLE",
+            },
+        )
+        ws.freeze(rows=1)
+        ws.spreadsheet.batch_update(
+            {
+                "requests": [
+                    {
+                        "updateDimensionProperties": {
+                            "range": {
+                                "sheetId": ws.id,
+                                "dimension": "COLUMNS",
+                                "startIndex": 4,
+                                "endIndex": 5,
+                            },
+                            "properties": {"pixelSize": 260},
+                            "fields": "pixelSize",
+                        }
+                    }
+                ]
+            }
+        )
+
+    return ws
+
+
+def sync_backtest_position(
+    ticker: str, name: str, strategy_name: str, params: dict, status: str
+):
+    param_str = ",".join(f"{k}={v}" for k, v in params.items())
+    try:
+        ws = get_backtest_worksheet()
+        codes = ws.col_values(1)
+        row = [
+            ticker,
+            name or ticker,
+            strategy_name,
+            param_str,
+            status,
+        ]
+
+        if ticker in codes[1:]:
+            row_idx = codes.index(ticker) + 1
+            ws.update(range_name=f"A{row_idx}:E{row_idx}", values=[row])
+            print(f"🔄 已更新 Google Sheet 分頁既有列: {ticker}")
+        else:
+            ws.append_row(row, value_input_option="USER_ENTERED")
+            print(f"📤 已新增至 Google Sheet 分頁: {ticker}")
+    except Exception as e:
+        print(f"⚠️ 同步分頁失敗: {e}")
+
+
+def check_current_signal(stats, strategy_name, ticker=None, to_sheet=False):
     """
     依據回測結果的最後狀態，判定今日訊號
     """
@@ -137,9 +280,29 @@ def check_current_signal(stats, strategy_name):
 
             # 這裡可以加入賣出邏輯判定
             # if 滿足賣出條件: print("🔔 建議：今日觸發賣出訊號")
+
+            if ticker and to_sheet:
+                name = get_stock_name(ticker)
+                sync_backtest_position(
+                    ticker,
+                    name,
+                    strategy_name,
+                    dict(strategy_instance._params),
+                    "持有中",
+                )
         else:
             print(f"📊 目前狀態：【 ⚪ 空手觀望 】")
             print(f"💡 建議：等待下一次買入訊號")  # 取得最後一根 K 線的價格與指標值
+
+            if ticker and to_sheet:
+                name = get_stock_name(ticker)
+                sync_backtest_position(
+                    ticker,
+                    name,
+                    strategy_name,
+                    dict(strategy_instance._params),
+                    "空手中",
+                )
 
     except Exception as e:
         print(f"判定訊號時發生錯誤: {e}")
@@ -206,8 +369,15 @@ def main():
         "-s",
         "--strategy",
         type=str,
+        nargs="?",
+        const="__list__",
         default="all",
-        help="指定策略（預設 all）：EMA_KD, EMA_VWAP_KD, SmaCross, SMA_KD, BOLL_KD30",
+        help="指定策略（預設 all）：EMA_KD, EMA_VWAP_KD, SmaCross, SMA_KD, BOLL_KD30, BOX_RANGE, LEFT_SIDE_MA, NEURAL_SEASONALITY。不帶值則列出所有可用策略",
+    )
+    parser.add_argument(
+        "--to-sheet",
+        action="store_true",
+        help="若目前有未平倉部位，將結果輸出至 Google Sheet（預設不輸出）",
     )
 
     args = parser.parse_args()
@@ -215,6 +385,22 @@ def main():
     years = args.years
     months = args.months
     strategy = args.strategy
+    to_sheet = args.to_sheet
+
+    if strategy == "__list__":
+        print("可用策略：")
+        for s in [
+            "EMA_KD",
+            "EMA_VWAP_KD",
+            "SmaCross",
+            "SMA_KD",
+            "BOLL_KD30",
+            "BOX_RANGE",
+            "LEFT_SIDE_MA",
+            "NEURAL_SEASONALITY",
+        ]:
+            print(f"  - {s}")
+        return
 
     # 設定日期範圍
     today = datetime.today()
@@ -233,7 +419,9 @@ def main():
             "EMA_VWAP_KD",
             "SmaCross",
             "SMA_KD",
-            "BOLL_KD30, BOX_RANGE",
+            "BOLL_KD30",
+            "BOX_RANGE",
+            "LEFT_SIDE_MA",
         ]
         results = {}
 
@@ -256,7 +444,7 @@ def main():
             print(f"最佳策略: {best_strategy}")
             print(f"最終資產淨值: ${results[best_strategy]['equity']:,.2f}")
             # --- 新增：判定今日訊號 ---
-            check_current_signal(best_stats, best_strategy)
+            check_current_signal(best_stats, best_strategy, ticker, to_sheet)
             print("=" * 60)
         else:
             print("所有策略執行失敗。")
@@ -264,6 +452,7 @@ def main():
     else:
         stats = run_strategy(df, strategy)
         print_result(stats, strategy)
+        check_current_signal(stats, strategy, ticker, to_sheet)
 
 
 if __name__ == "__main__":
