@@ -264,18 +264,30 @@ class LEFT_SIDE_MA(Strategy):
     ma_period = 60
     take_profit = 0.2
     stop_loss = 0.08
+    cooldown_bars = 5  # 停損出場後,幾根K棒內不再進場
 
     def init(self):
         self.ma20 = self.I(SMA, self.data.Close, self.ma_period)
+        self.last_stop_bar = -self.cooldown_bars
 
     def next(self):
         price = self.data.Close[-1]
         ma20 = self.ma20[-1]
+        bar = len(self.data) - 1
 
         if np.isnan(ma20):
             return
 
-        if not self.position and price < ma20:
+        # 若上一筆交易剛於本根K棒平倉且為虧損(觸及停損),記錄冷卻起點
+        if self.closed_trades and self.closed_trades[-1].exit_bar == bar:
+            if self.closed_trades[-1].pl < 0:
+                self.last_stop_bar = bar
+
+        if bar - self.last_stop_bar < self.cooldown_bars:
+            return
+
+        # 以「向下穿越」均線取代單純「低於均線」,避免價格持續在均線下方時反覆進場
+        if not self.position and crossover(self.ma20, self.data.Close):
             self.buy(
                 sl=price * (1 - self.stop_loss),
                 tp=price * (1 + self.take_profit),

@@ -100,7 +100,11 @@ def compute_signals(df: pd.DataFrame, display_start_date: str) -> pd.DataFrame:
         # 下半身: 昨日收盤價在5MA之下 + 今日紅K且實體一半在5MA之上
         yesterday_kahanshin = prev["Close"] <= prev["MA5"]
         is_kahanshin = (
-            (not is_range) and yesterday_kahanshin and (c > o) and (body_center > ma5)
+            (not is_range)
+            and yesterday_kahanshin
+            and (c > o)
+            and (body_center > ma5)
+            and (v > v_ma20)
         )
 
         # 逆下半身: 昨日收紅Ｋ且收盤價在5MA之上 + 今日收黑K且實體一半在5MA之下
