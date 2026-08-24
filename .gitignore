@@ -4,7 +4,10 @@ __pycache__/
 *.pyc
 
 lightning_logs/
+*.log
 
 .env
 credentials.json
 credentials_*.json
+
+/bt_scripts/reports

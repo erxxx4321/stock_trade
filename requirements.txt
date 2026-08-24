@@ -11,6 +11,8 @@ statsmodels
 streamlit>=1.42.0
 altair>=5.0.0
 beautifulsoup4
+requests
 dotenv
 gspread
 google-auth
+yfinance
